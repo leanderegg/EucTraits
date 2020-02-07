@@ -671,7 +671,221 @@ scatter.smooth(abs(resid(OBLIsite3,type = "normalized"))~round(OBLIsite3$data$pP
 
 
 
-```{r}
+```{r LDMC Trait-Env ACAC}
+
+ACACldmc <- fit.traits(dataz=traits.b, species="ACAC",trait="LDMC",diam=F, standBA=F)
+anova(ACACldmc$AI, ACACldmc$null) # p=4.851e-06 ***
+anova(ACACldmc$MD, ACACldmc$null) # p=5.383e-06 ***
+anova(ACACldmc$DBH, ACACldmc$null) # p= null model (no DBHS)
+
+residplots(model=ACACldmc$MD, climvar= "pMD", dataz=traits.b[which(traits.b$Species=="ACAC" & traits.b$LDMC>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "ACAC", Trait="LDMC", vers=current_version)
+
+ACACsite <- lme(LDMC~ pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="ACAC")
+ACACsite1 <- lme(LDMC~ pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="ACAC", weights = varIdent (form = ~1|Sitetag))
+ACACsite2 <- lme(LDMC~ pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="ACAC", weights = varPower (form = ~ I(pPETscaled+5)))
+ACACsite3 <- lme(LDMC~ pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="ACAC", weights = varConstPower (form = ~ pMD))
+AIC(ACACsite, ACACsite1, ACACsite2, ACACsite3) # so there's a difference bewteen sites, but it's only partially related to MD, in a monotic fashion
+anova(ACACsite, ACACsite2) # might actually be a change in var with plot? p=0.0299
+scatter.smooth(abs(resid(ACAC4))~round(ACAC4@frame$pMDscaled,digits = 3))
+  # difference, visual and statistical
+```
+
+``` {r LDMC Trait-Env ESAL}
+
+
+ESALldmc <- fit.traits(dataz=traits.b, species="ESAL",trait="LDMC",diam=F, standBA=F)
+anova(ESALldmc$PET, ESALldmc$null) # p=0.0005128 ***
+anova(ESALldmc$fert, ESALldmc$null) # p=0.07697 .
+#anova(ESALldmc$DBH, ESALldmc$null) # p= # missing a lot of DBHs? this is unfortunate.
+
+residplots(model=ESALldmc$PET,climvar="pPET", dataz=traits.b[which(traits.b$Species=="ESAL" & traits.b$LDMC>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "ESAL", Trait="LDMC", vers=current_version)
+
+
+## PET 
+ESALsite <- lme(LDMC~pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="ESAL")
+ESALsite1 <- lme(LDMC~pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="ESAL", weights = varIdent (form = ~1|Sitetag))
+ESALsite2 <- lme(LDMC~ pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0 & traits.b$Species=="ESAL"),], weights = varPower (form = ~ I(pPETscaled)))
+ESALsite3 <- lme(LDMC~ pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="ESAL", weights = varPower (form = ~ I(pPETscaled+5)))
+ESALsite4 <- lme(LDMC~ pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="ESAL", weights = varConstPower (form = ~ pPET))
+AIC(ESALsite, ESALsite1, ESALsite2, ESALsite3,ESALsite4)
+anova(ESALsite, ESALsite1) # sites different, symmetrical
+anova(ESALsite, ESALsite2) # p=0.0473
+scatter.smooth(abs(resid(ESAL2))~ESAL2@frame$pPETscale)
+plot(abs(resid(ESALsite2))~ESALsite2$data$pPETscale)
+```
+
+``` {r LDMC Trait-Env EMARG}
+
+EMARGldmc <- fit.traits(dataz=traits.b, species="EMARG",trait="LDMC",diam=F, standBA=F)
+anova(EMARGldmc$PET, EMARGldmc$null) # p=0.02656 *
+anova(EMARGldmc$fert, EMARGldmc$null) # p=0.28
+anova(EMARGldmc$DBH, EMARGldmc$null) # p= 0.78
+bestvar <- "pPET"
+residplots(model=EMARGldmc$PET,climvar=bestvar, dataz=traits.b[which(traits.b$Species=="EMARG" & traits.b$LDMC>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "EMARG", Trait="LDMC", vers=current_version)
+
+
+EMARGsite <- lme(as.formula (paste("LDMC~ ",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="EMARG")
+EMARGsite1 <- lme(as.formula (paste("LDMC~ ",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="EMARG", weights = varIdent (form = ~1|Sitetag))
+EMARGsite2 <- lme(as.formula (paste("LDMC~ ",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="EMARG", weights = varPower (form = as.formula(paste("~ p",bestvar,"scaled", sep=""))))
+EMARGsite3 <- lme(as.formula (paste("LDMC~ ",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="EMARG", weights = varPower (form = as.formula(paste("~ I(p",bestvar,"scaled + 5)", sep=""))))
+EMARGsite4 <- lme(as.formula (paste("LDMC~ ",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="EMARG", weights = varConstPower (form = as.formula(paste("~ p",bestvar,"scaled", sep=""))))
+AIC(EMARGsite, EMARGsite1, EMARGsite2, EMARGsite3,EMARGsite4)
+anova(EMARGsite, EMARGsite3) # strong differences
+# monotonic INCREASE with PET  p=2e-04 (slight evidence for a bit of a horseshoe shape)
+```
+
+``` {r LDMC Trait-Env COCA}
+
+COCAldmc <- fit.traits(dataz=traits.b, species="COCA",trait="LDMC",diam=F, standBA=F)
+anova(COCAldmc$fert, COCAldmc$null) # p=0.008252 **
+anova(COCAldmc$PPT, COCAldmc$null) # p=0.1226
+anova(COCAldmc$DBH, COCAldmc$null) # p= 0.66
+bestvar <- "PC1fert" # no climate relationship
+residplots(model=COCAldmc$fert,climvar=bestvar, dataz=traits.b[which(traits.b$Species=="COCA" & traits.b$LDMC>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "COCA", Trait="LDMC", vers=current_version, write.jpeg = F)
+
+
+
+COCAsite <- lme(as.formula (paste("LDMC~ ",bestvar, sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="COCA")
+COCAsite1 <- lme(as.formula (paste("LDMC~ ",bestvar, sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="COCA", weights = varIdent (form = ~1|Sitetag))
+COCAsite2 <- lme(as.formula (paste("LDMC~ ",bestvar, sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="COCA", weights = varPower (form = as.formula(paste("~",bestvar))))
+COCAsite3 <- lme(as.formula (paste("LDMC~ ",bestvar, sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="COCA", weights = varPower (form = as.formula(paste("~ I(",bestvar," + 5)", sep=""))))
+COCAsite4 <- lme(as.formula (paste("LDMC~ p",bestvar, sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="COCA", weights = varConstPower (form = as.formula(paste("~",bestvar, sep=""))))
+AIC(COCAsite, COCAsite1, COCAsite2, COCAsite3,COCAsite4)
+anova(COCAsite, COCAsite1) # strong differences
+# 
+# #*** I think anything revealed here is prob just the sites not being identicial but not being climate related
+```
+
+
+```{r LDMC Trait-Env OVAT}
+
+OVATldmc <- fit.traits(dataz=traits.b, species="OVAT",trait="LDMC",diam=F, standBA=T)
+anova(OVATldmc$fert, OVATldmc$null) # p=4.401e-06 ***
+anova(OVATldmc$PPT, OVATldmc$null) # p=4.699e-06 ***
+anova(OVATldmc$DBH, OVATldmc$null) # p= 0.416
+anova(OVATldmc$StandBA, OVATldmc$null) # p= 0.30
+# NOTE: a number of these models reduce the Plot random effect to 0, resulting in 'Singular' models.
+# this could, in theory, influence thinks like LRT of these models. I refit the top models without the plot random effect just in case.
+OVATnull <- lmer(LDMC~  1 + (1|Treetag), data = traits.b, subset=Species=="OVAT" , REML=F)
+OVAT1 <- lmer(LDMC~pPPTscaled  + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+OVAT2 <- lmer(LDMC~PC1fert  + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+AIC(OVATnull, OVAT1, OVAT2)
+anova(OVATnull, OVAT2) # p= 7.294e-08 ***
+# if anything, LRT with singular model UNDERESTIMATES significance.
+
+bestvar <- "PC1fert" 
+residplots(model=OVATldmc$fert,climvar=bestvar, dataz=traits.b[which(traits.b$Species=="OVAT" & traits.b$LDMC>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "OVAT", Trait="LDMC", vers=current_version, write.jpeg = F)
+
+
+  # strong visual decrease in resids with lower PPT
+bestvar <- "PPT"
+OVATsite <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OVAT")
+OVATsite1 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OVAT", weights = varIdent (form = ~1|Sitetag))
+OVATsite2 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OVAT", weights = varPower (form = as.formula(paste("~ p",bestvar,"scaled", sep=""))))
+OVATsite3 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OVAT", weights = varPower (form = as.formula(paste("~ I(p",bestvar,"scaled + 5)", sep=""))))
+OVATsite4 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OVAT", weights = varConstPower (form = as.formula(paste("~ p",bestvar,"scaled", sep=""))))
+AIC(OVATsite, OVATsite1, OVATsite2, OVATsite3,OVATsite4)
+anova(OVATsite, OVATsite3) # strong differences, <.0001
+# repeating with PC1fert
+bestvar <- "PC1fert"
+OVATsite <- lme(as.formula (paste("LDMC~ ",bestvar, sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OVAT")
+OVATsite1 <- lme(as.formula (paste("LDMC~ ",bestvar, sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OVAT", weights = varIdent (form = ~1|Sitetag))
+OVATsite2 <- lme(as.formula (paste("LDMC~ ",bestvar, sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OVAT", weights = varPower (form = as.formula(paste("~",bestvar, sep=""))))
+OVATsite3 <- lme(as.formula (paste("LDMC~ ",bestvar, sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OVAT", weights = varPower (form = as.formula(paste("~ I(",bestvar," + 5)", sep=""))))
+OVATsite4 <- lme(as.formula (paste("LDMC~ ",bestvar, sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OVAT", weights = varConstPower (form = as.formula(paste("~",bestvar, sep=""))))
+AIC(OVATsite, OVATsite1, OVATsite2, OVATsite3,OVATsite4)
+anova(OVATsite, OVATsite3) # strong differences, <.0001
+  # strong differences with fert as well, but varIdent best, followed by varConstPower
+
+```
+
+
+
+``` {r LDMC Trait-Env VIMI}
+
+VIMIldmc <- fit.traits(dataz=traits.b, species="VIMI",trait="LDMC",diam=F, standBA=T)
+anova(VIMIldmc$PPT, VIMIldmc$null) # p=1.531e-06 ***
+anova(VIMIldmc$fert, VIMIldmc$null) # p=0.005791 **
+anova(VIMIldmc$DBH, VIMIldmc$null) # p= 0.427
+anova(VIMIldmc$StandBA, VIMIldmc$null) # p= 0.235
+bestvar <- "pPPT" # no climate relationship
+residplots(model=VIMIldmc$PPT,climvar=bestvar, dataz=traits.b[which(traits.b$Species=="VIMI" & traits.b$LDMC>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "VIMI", Trait="LDMC", vers=current_version)
+anova(VIMInull, VIMI3)
+## PET best model for VIMI, p= 0.1226*
+
+
+# maybe hump shaped?
+VIMIsite <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="VIMI")
+VIMIsite1 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="VIMI", weights = varIdent (form = ~1|Sitetag))
+VIMIsite2 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="VIMI", weights = varPower (form = as.formula(paste("~ p",bestvar,"scaled", sep=""))))
+VIMIsite3 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="VIMI", weights = varPower (form = as.formula(paste("~ I(p",bestvar,"scaled + 5)", sep=""))))
+VIMIsite4 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="VIMI", weights = varConstPower (form = as.formula(paste("~ p",bestvar,"scaled", sep=""))))
+AIC(VIMIsite, VIMIsite1, VIMIsite2, VIMIsite3)#,VIMIsite4)
+anova(VIMIsite, VIMIsite3) # marginal 0.0454, slight increase with PPT
+
+scatter.smooth(abs(resid(VIMIldmc$PPT))~round(VIMIldmc$PPT@frame[,paste0(bestvar,"scaled")],digits = 3))
+```
+
+
+``` {r LDMC Trait-Env AMYG}
+
+AMYGldmc <- fit.traits(dataz=traits.b, species="AMYG",trait="LDMC",diam=F, standBA=T)
+anova(AMYGldmc$PPT, AMYGldmc$null) # p=0.0009514 ***
+anova(AMYGldmc$fert, AMYGldmc$null) # p=0.00186 **
+anova(AMYGldmc$DBH, AMYGldmc$null) # p= 0.73
+anova(AMYGldmc$StandBA, AMYGldmc$null) # p= 0.57
+bestvar <- "pPPT" # no climate relationship
+residplots(model=AMYGldmc$PPT,climvar=bestvar, dataz=traits.b[which(traits.b$Species=="AMYG" & traits.b$LDMC>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "AMYG", Trait="LDMC", vers=current_version)
+
+
+scatter.smooth(abs(resid(AMYGldmc$PPT))~round(AMYGldmc$PPT@frame[,paste0(bestvar,"scaled")],digits = 3))
+# visual evidence mediocre
+AMYGsite <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="AMYG")
+AMYGsite1 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="AMYG", weights = varIdent (form = ~1|Sitetag))
+AMYGsite2 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="AMYG", weights = varPower (form = as.formula(paste("~ p",bestvar,"scaled", sep=""))))
+AMYGsite3 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="AMYG", weights = varPower (form = as.formula(paste("~ I(p",bestvar,"scaled + 5)", sep=""))))
+AMYGsite4 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="AMYG", weights = varConstPower (form = as.formula(paste("~ p",bestvar,"scaled", sep=""))))
+AIC(AMYGsite, AMYGsite1, AMYGsite2, AMYGsite3)#,AMYGsite4)
+anova(AMYGsite, AMYGsite3) # no evidence
+```
+
+
+``` {r LDMC Trait-Env OBLI}
+OBLIldmc <- fit.traits(dataz=traits.b, species="OBLI",trait="LDMC",diam=F, standBA=T)
+anova(OBLIldmc$AI, OBLIldmc$null) # p=9.16e-06 ***
+anova(OBLIldmc$MD, OBLIldmc$null) # p=1.029e-05 ***
+anova(OBLIldmc$DBH, OBLIldmc$null) # p= 0.641
+anova(OBLIldmc$StandBA, OBLIldmc$null) # p= 0.84
+
+bestvar <- "pMD" # no climate relationship
+residplots(model=OBLIldmc$MD,climvar=bestvar, dataz=traits.b[which(traits.b$Species=="OBLI" & traits.b$LDMC>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "OBLI", Trait="LDMC", vers=current_version, write.jpeg = F)
+
+scatter.smooth(abs(resid(OBLIldmc$MD))~round(OBLIldmc$MD@frame[,paste0(bestvar,"scaled")],digits = 3))
+# strong visual decrease in resids with higher MD
+OBLIsite <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OBLI")
+OBLIsite1 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OBLI", weights = varIdent (form = ~1|Sitetag))
+OBLIsite2 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OBLI", weights = varPower (form = as.formula(paste("~ p",bestvar,"scaled", sep=""))))
+OBLIsite3 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OBLI", weights = varPower (form = as.formula(paste("~ I(p",bestvar,"scaled + 5)", sep=""))))
+OBLIsite4 <- lme(as.formula (paste("LDMC~ p",bestvar,"scaled", sep="")) , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$LDMC>0),], subset=Species=="OBLI", weights = varConstPower (form = as.formula(paste("~ p",bestvar,"scaled", sep=""))))
+AIC(OBLIsite, OBLIsite1, OBLIsite2, OBLIsite3,OBLIsite4)
+anova(OBLIsite, OBLIsite4) # strong differences, 0.0036
+# decreasing with increasing MD
 
 ```
 
