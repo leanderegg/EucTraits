@@ -97,6 +97,20 @@ plot.MAR <- function(xvar, yvar, data, method="SMA", linecol, lwd=1, lty=1) {
 #Mypairs
 #Make fancy pair plots (modified from Mixed effects models and extensions in ecology with R. (2009).
 #Zuur, AF, Ieno, EN, Walker, N, Saveliev, AA, and Smith, GM. Springer.)
+
+panel.cor <- function(x, y, digits=1, prefix="", cex.cor = 6)
+{
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  r1=cor(x,y,use="pairwise.complete.obs")
+  r <- abs(cor(x, y,use="pairwise.complete.obs"))
+  txt <- format(c(r1, 0.123456789), digits=digits)[1]
+  txt <- paste(prefix, txt, sep="")
+  if(missing(cex.cor)) { cex <- 0.9/strwidth(txt) } else {
+     cex = cex.cor}
+  text(0.5, 0.5, txt, cex = cex * r)
+}
+
 Mypairs <- function(Z, col, pt.cex=0.8) {
   MyVarx <- colnames(Z)
   pairs(Z, labels = MyVarx,
@@ -232,7 +246,7 @@ traits.s$log.hub <- log(traits.s$hub, base=10)
 
 
 # climate quantiles for the whole species distributions (for code used to create this, email LDL Anderegg)
-quants <- read.csv("/Users/leeanderegg/Dropbox/Trade-offs project/CombinedWATas_Trait_data/Climate_Quantiles_allspp_20180806.csv")[,-1]
+quants <- read.csv("data/Climate_Quantiles_allspp_20180806.csv")[,-1]
 quants$Species <- quants$spp
 levels(quants$Species) <- list(ACAC="acac",ESAL="esal",EMARG="emarg",COCA="coca",OVAT="ovat",VIMI="vimi",AMYG="amyg",OBLI="obli")
 
@@ -280,6 +294,537 @@ mtext(text = "PPT (mm)", side=1, line=2.5)
 quartz.save(file=paste0("./",results_dirname,"/Fig1_TraitClimate.pdf"),type = "pdf" )
 
 ```
+
+```{r FIG S1}
+
+########### FIG S1: Pairplots of environmental variable colinearity ####################
+
+palette(pal)
+quartz(width=7, height=6)
+Mypairs(traits.s %>% select(Tmin,MAT,PPT,PET,MD,AI,PC1fert,PC2depth), col=traits.s$Species, pt.cex=1.3)
+
+legend("bottom",legend=levels(traits.s$Species), col=pal[1:8], pch=16, ncol=4, xpd=NA, bty="n", cex=.8, inset=1.05)
+quartz.save(file=paste0("./",results_dirname,"/FigS1_Pairplot_climatesoil.pdf"),type = "pdf" )
+
+
+```
+
+
+**Analysis of trait-climate relationships **
+for each species and trait
+Goal:
+1) select the best environmental variable for explaining trait variation among plots
+2) perform model criticism of best model
+3) using this best model test whether variance is homogenous, varies by site, or varies predictably with climate
+
+```{r trait-climate functions, echo=FALSE}
+
+# function to fit multiple possible environmental predictors and select the best based on AIC
+fit.traits <- function(dataz, trait, species, diam = F, standBA = F){
+  mods <- list()
+  if(diam==T){
+    mods$null <- lmer(get(trait)~ Diameter + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    mods$AI <- lmer(get(trait)~Diameter + pAIscaled + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    mods$PET <- lmer(get(trait)~Diameter +pPETscaled + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    mods$PPT <- lmer(get(trait)~Diameter +pPPTscaled + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    mods$MD <- lmer(get(trait)~Diameter +pMDscaled + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    mods$fert <- lmer(get(trait)~Diameter + PC1fert + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    mods$depth <- lmer(get(trait)~Diameter + PC2depth + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    mods$DBH <- lmer(get(trait)~Diameter + TreeDBH + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    if(standBA == T){
+    mods$StandBA <- lmer(get(trait)~Diameter + StandBA + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    print(AIC(mods$null,mods$AI,mods$PET,mods$PPT,mods$MD,mods$fert,mods$depth,mods$DBH,mods$StandBA)[order(AIC(mods$null,mods$AI,mods$PET,mods$PPT,mods$MD,mods$fert,mods$depth,mods$DBH,mods$StandBA)$AIC,decreasing = F),])
+    }
+    if(standBA==F){
+      print(AIC(mods$null,mods$AI,mods$PET,mods$PPT,mods$MD,mods$fert,mods$depth,mods$DBH)[order(AIC(mods$null,mods$AI,mods$PET,mods$PPT,mods$MD,mods$fert,mods$depth,mods$DBH)$AIC,decreasing = F),])
+    }
+  }
+  if(diam==F){
+    mods$null <- lmer(get(trait)~ 1 + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    mods$AI <- lmer(get(trait)~ pAIscaled + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    mods$PET <- lmer(get(trait)~pPETscaled + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    mods$PPT <- lmer(get(trait)~pPPTscaled + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    mods$MD <- lmer(get(trait)~pMDscaled + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    mods$fert <- lmer(get(trait)~ PC1fert + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    mods$depth <- lmer(get(trait)~ PC2depth + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    mods$DBH <- lmer(get(trait)~ TreeDBH + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+    if(standBA == T){
+      mods$StandBA <- lmer(get(trait)~ StandBA + (1|Plottag) + (1|Treetag), data = dataz, subset=Species==species, REML=F)
+      print(AIC(mods$null,mods$AI,mods$PET,mods$PPT,mods$MD,mods$fert,mods$depth,mods$DBH,mods$StandBA)[order(AIC(mods$null,mods$AI,mods$PET,mods$PPT,mods$MD,mods$fert,mods$depth,mods$DBH,mods$StandBA)$AIC,decreasing = F),])
+    }
+    if(standBA==F){
+      print(AIC(mods$null,mods$AI,mods$PET,mods$PPT,mods$MD,mods$fert,mods$depth,mods$DBH)[order(AIC(mods$null,mods$AI,mods$PET,mods$PPT,mods$MD,mods$fert,mods$depth,mods$DBH)$AIC,decreasing = F),])
+    }
+  }
+  return(mods)
+}
+
+
+# useful model diagnostics plots for evaluating the best model
+# note: if write.jpeg=T this will create a jpeg in a directories nested "Trait-Clim_ModCrit" directory in results_dirname
+dir.create(paste0(results_dirname,"/Trait-Clim_ModCrit"))
+residplots <- function(model, dataz, climvar, res.type="normalized", Species = "",Trait="", mixed = F, path=paste0(results_dirname,"/Trait-Clim_ModCrit/"), vers = "v1", write.jpeg=T ){
+  if(write.jpeg==T){
+    jpeg(filename = paste(path,Trait,"/",Species,Trait,"_Resids_",vers,".jpeg", sep=""),width = 7, height=6, units = "in", res=600)
+  }
+  else{quartz(width=7, height=6, title=paste(dataz$Species[1], Title))}
+  
+  par(mfrow=c(3,2), mar=c(4,4,1,1), oma=c(0,0,2,0))
+  if(mixed==T){
+    ref.group <- ranef(model)
+    ref.var.group1 <- tapply(residuals(model, type="pearson", level=1),
+                             dataz[,names(ref.group[1])], var)
+    ref.var.group2 <- tapply(residuals(model, type="pearson", level=1),
+                             dataz[,names(ref.group[2])], var)
+    qqp(ref.group[[1]][[1]], main="Tree Random Effects")
+    qqp(ref.group[[2]][[1]], main="Plot Random Effects")
+    # qqnorm(ref.group[[1]][[1]], main="Q-Q Normal - group Random Effects")
+    # qqline(ref.group[[1]][[1]], col="red")
+  }
+  else{
+    # qqnorm(residuals(model), main = "raw"); qqline(residuals(model))
+    qqp(residuals(model), main="raw resids")
+  }
+  # qqnorm(residuals(model, type=res.type), main="normalized"); qqline(residuals(model, type=res.type))
+  qqp(residuals(model, type=res.type), main="normalized")
+  mod.resids <- residuals(model, type=res.type)
+  scatter.smooth(mod.resids~dataz[,climvar],xlab=climvar); abline(h=0, col="red")
+  scatter.smooth(mod.resids~dataz$Diameter); abline(h=0, col="red")
+  # scatter.smooth(mod.resids~dataz$BAI10yr); abline(h=0, col="red")
+  boxplot(mod.resids~factor(dataz$Plottag), notch=T, varwidth=T); abline(h=0)
+  #quartz(width=9, height=4)
+  if(write.jpeg==T){
+    dev.off()
+    jpeg(filename = paste(path,Trait,"/",Species,Trait,"_Vars_",vers,".jpeg", sep=""),width = 9, height=4, units = "in", res=600)
+  }
+  else{ quartz(width=9, height=4)}
+  par(mfrow=c(1,4), mar=c(4,4,1,1), oma=c(0,0,2,0))
+  ref.group[[2]]$pMD <- traits.p$pMD[match(rownames(ref.group[[2]]),traits.p$Plottag)]
+  ref.group[[2]]$pPPT <- traits.p$pPPT[match(rownames(ref.group[[2]]),traits.p$Plottag)]
+  ref.group[[2]]$pPET <- traits.p$pPET[match(rownames(ref.group[[2]]),traits.p$Plottag)]
+  ref.group[[2]]$PC1fert <- traits.p$PC1fert[match(rownames(ref.group[[2]]),traits.p$Plottag)]
+  ref.group[[2]]$PC2depth <- traits.p$PC2depth[match(rownames(ref.group[[2]]),traits.p$Plottag)]
+  ref.group[[2]]$var <- ref.var.group2[match(rownames(ref.group[[2]]), names(ref.var.group2))]
+  
+  ref.group[[1]]$pMD <- traits.t$pMD[match(rownames(ref.group[[1]]),traits.t$Treetag)]
+  ref.group[[1]]$pPET <- traits.t$pPET[match(rownames(ref.group[[1]]),traits.t$Treetag)]
+  ref.group[[1]]$pPPT <- traits.t$pPPT[match(rownames(ref.group[[1]]),traits.t$Treetag)]
+  ref.group[[1]]$PC1fert <- traits.t$PC1fert[match(rownames(ref.group[[1]]),traits.t$Treetag)]
+  ref.group[[1]]$PC2depth <- traits.t$PC2depth[match(rownames(ref.group[[1]]),traits.t$Treetag)]
+  ref.group[[1]]$var <- ref.var.group1[match(rownames(ref.group[[1]]), names(ref.var.group1))]
+  
+  dataz$TreeEff <- ref.group[[1]]$`(Intercept)`[match(dataz$Treetag,rownames(ref.group[[1]]))]
+  plot(ref.group[[2]]$`(Intercept)`~ref.group[[2]][,climvar],xlab=climvar, main="Plot Ran Effs")
+  abline(h=0)
+  # plot(TreeEff~pMD, dataz)
+  # abline(h=0)
+  plot(ref.group[[1]]$`(Intercept)`~ref.group[[1]][,climvar], dataz,xlab=climvar, main="Tree Ran Effs")
+  abline(h=0)
+  scatter.smooth(ref.group[[2]]$var~ref.group[[2]][,climvar], main="within Plot var",xlab=climvar)
+  scatter.smooth(ref.group[[1]]$var~ref.group[[1]][,climvar], main="within Tree var",xlab=climvar)
+  if(write.jpeg==T){dev.off()}
+  #   plot(TreeEff~pPPT, dataz)
+  #   abline(h=0)
+}
+```
+
+
+Prior to modeling trait-env relationships for wood density, it should be noted that some species show a relationship between branch diameter and branch wood density. For these species, diameter needs to be included as a fixed covariate.
+
+
+```{r WD Trait-Env }
+dir.create(paste0(results_dirname,"/Trait-Clim_ModCrit/WD")) # create directory for storing model criticism plots
+
+###### . WD Trait-Environment model selection ##################
+# before modeling, should note that:
+testAMYG <- lmer(WD~Site + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG", REML=F)
+testAMYGd <- lmer(WD~Site + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG", REML=F)
+# extremely significant diameter effect for AMYG
+testOBLI <- lmer(WD~Site + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI", REML=F)
+testOBLId <- lmer(WD~Site + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI", REML=F)
+# extremely significant diameter effect for OBLI
+testOVAT <- lmer(WD~Site + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+testOVATd <- lmer(WD~Site + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+# marginally signicant diameter effect for OVAT (p=0.047, dAIC=1.95)
+testVIMI <- lmer(WD~Site + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI", REML=F)
+testVIMId <- lmer(WD~Site + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI", REML=F)
+# no effect for VIMI
+testEMARG <- lmer(WD~Site + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
+testEMARGd <- lmer(WD~Site + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
+# extremely significant diameter effect for EMARG
+testCOCA <- lmer(WD~Site + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
+testCOCAd <- lmer(WD~Site + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
+# marginal effect for COCA p=0.1075
+testESAL <- lmer(WD~Site + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
+testESALd <- lmer(WD~Site + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
+# no effect for ESAL
+testACAC <- lmer(WD~Site + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ACAC", REML=F)
+testACACd <- lmer(WD~Site + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ACAC", REML=F)
+# marginal effect for ACAC p=0.08588
+
+# need diameter for:
+
+# AMYG, OBLI, OVAT, EMARG, COCA, ACAC (all sig and marginal effects)
+
+# no need for diameter for:
+#ESAL, VIMI
+
+
+
+#+++++++++++++. ACAC +++++++++++++++++++++++++++++++++++
+
+ACACwd <- fit.traits(dataz=traits.b, trait="WD",species="ACAC",standBA=F, diam = T)
+anova(ACACwd$null, ACACwd$PET)# p=4.137e-05
+
+residplots(model=ACACwd$PET, dataz=traits.b[which(traits.b$Species=="ACAC" & traits.b$WD>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "ACAC", Trait="WD"
+           , climvar="pPET")
+
+# now test
+ACACsite <- lme(WD~Diameter + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="ACAC")
+ACACsite1 <- lme(WD~Diameter + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="ACAC", weights = varIdent (form = ~1|Sitetag))
+ACACsite2 <- lme(WD~Diameter + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="ACAC", weights = varPower (form = ~ pPETscaled))
+ACACsite3 <- lme(WD~Diameter + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="ACAC", weights = varConstPower (form = ~ I(pPET)))
+AIC(ACACsite, ACACsite1, ACACsite2, ACACsite3) # so there's a difference bewteen sites, but it's not related to pMD (or PET or PPT)
+anova(ACACsite, ACACsite1) # might actually be a change in var with plot? p=0.0299
+boxplot(resid(ACACsite)~round(traits.b$pMD[which(traits.b$Species=="ACAC" & traits.b$WD>0)], digits=0))
+#residplots(model=ACACsite, dataz=traits.b[which(traits.b$Species=="ACAC" & traits.b$WD>0),],res.type = "pearson",mixed = T)
+  ## so no evidence for increasing variance with increasing moisture avail
+  # def different variances per site, but doesn't seem to be cliamte related. There is also a hint of decreased plot-level variance with CMD and decreased tree-level variance with CMD
+# ACAC-PER-B-5-1 is a weird low outlier, need to remove for analysis
+
+
+# ESALnull <- lmer(WD~ (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
+# ESAL1 <- lmer(WD~pAIscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
+# ESAL2 <- lmer(WD~pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
+# ESAL3 <- lmer(WD~pPPTscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
+# ESAL4 <- lmer(WD~pMDscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
+# ESAL5 <- lmer(WD~pPPTscaled + pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
+# ESAL6 <- lmer(WD~pPPTscaled * pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
+# ESAL7 <- lmer(WD~PC1fert + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
+# ESAL8 <- lmer(WD~PC2depth+ (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
+# AIC(ESALnull,ESAL1,ESAL2,ESAL3,ESAL4,ESAL5,ESAL6,ESAL7,ESAL8)[order(AIC(ESALnull,ESAL1,ESAL2,ESAL3,ESAL4,ESAL5,ESAL6,ESAL7,ESAL8)$AIC,decreasing = F),]
+# 
+# anova(ESALnull, ESAL4) # p =9.928e-05
+## MD best predictor, with PET a close second for ESAL
+# within plot var might increase with MD
+# but between plot ran efs seems to decrease with drought
+ESALwd <- fit.traits(dataz=traits.b, species="ESAL",trait="WD",diam=F, standBA=F)
+anova(ESALwd$MD, ESALwd$null) # p =9.928e-05
+
+residplots(model=ESALwd$MD, dataz=traits.b[which(traits.b$Species=="ESAL" & traits.b$WD>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "ESAL", Trait="WD", vers=current_version
+           , climvar = "pMD")
+ESALsite <- lme(WD~pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="ESAL")
+ESALsite1 <- lme(WD~pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="ESAL", weights = varIdent (form = ~1|Sitetag))
+anova(ESALsite, ESALsite1) # so at first blush, doesn't seem to be strong evidence for different variances, despite visual evidence
+boxplot(resid(ESALsite)~round(traits.b$pMD[which(traits.b$Species=="ESAL" & traits.b$WD>0)], digits=0))
+scatter.smooth(abs(resid(ESAL4))~round(ESAL4@frame$pMDscaled,digits = 3))
+
+
+# EMARGnull <- lmer(WD~ Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
+# EMARG1 <- lmer(WD~pAIscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
+# EMARG2 <- lmer(WD~pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
+# EMARG3 <- lmer(WD~pPPTscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
+# EMARG4 <- lmer(WD~pMDscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
+# EMARG5 <- lmer(WD~pPPTscaled + pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
+# EMARG6 <- lmer(WD~pPPTscaled * pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
+# EMARG7 <- lmer(WD~Diameter + PC1fert + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
+# EMARG8 <- lmer(WD~Diameter + PC2depth+ (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
+# AIC(EMARGnull,EMARG1,EMARG2,EMARG3,EMARG4,EMARG5,EMARG6,EMARG7,EMARG8)[order(AIC(EMARGnull,EMARG1,EMARG2,EMARG3,EMARG4,EMARG5,EMARG6,EMARG7,EMARG8)$AIC,decreasing = F),]
+# # EMARG9 <- lmer(WD~ Diameter + PC2depth+pPPTscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
+#   # worse with both
+# # EMARG8 is best
+# plot(pPPT~PC2depth, traits.p[which(traits.p$Species=="EMARG"),])
+  # and PPT and PC2 are strongly correlated. it's a water signal
+# so sticking with PPT
+# anova(EMARGnull, EMARG3)
+# ## PPT best model for EMARG, p=0.01087
+# anova(EMARG3, EMARG5)
+#   # adding PET slightly helps, p=0.08357
+# # no strong residual patterns with MD
+# anova(EMARGnull, EMARG8)
+
+EMARGwd <- fit.traits(dataz=traits.b, species="EMARG",trait="WD",diam=T, standBA=F)
+anova(EMARGwd$depth, EMARGwd$null) # p =0.003996
+anova(EMARGwd$PPT, EMARGwd$null) # p =0.01087 *
+
+
+residplots(model=EMARGwd$depth, dataz=traits.b[which(traits.b$Species=="EMARG" & traits.b$WD>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "EMARG", Trait="WD", vers=current_version
+           , climvar="PC2depth")
+scatter.smooth(abs(resid(EMARG3))~round(EMARG3@frame$pPPTscaled,digits = 3))
+boxplot(resid(EMARG2)~round(EMARG2@frame$pPETscaled,digits = 1))
+EMARGsite <- lme(WD~Diameter + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="EMARG")
+EMARGsite1 <- lme(WD~Diameter + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="EMARG", weights = varIdent (form = ~1|Sitetag))
+EMARGsite2 <- lme(WD~Diameter + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="EMARG", weights = varPower (form = ~ pPPTscaled))
+AIC(EMARGsite, EMARGsite1, EMARGsite2) 
+anova(EMARGsite, EMARGsite2) # no need for different variances
+# PPT best, but not strong
+# plot(resid(EMARG3)~round(EMARG3@frame$pPPTscaled,digits = 3))
+# no residual trend
+
+
+# 
+# COCAnull <- lmer(WD~Diameter +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
+# COCA1 <- lmer(WD~Diameter + pAIscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
+# COCA2 <- lmer(WD~Diameter + pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
+# COCA3 <- lmer(WD~Diameter + pPPTscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
+# COCA4 <- lmer(WD~Diameter + pMDscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
+# COCA5 <- lmer(WD~Diameter + pPPTscaled + pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
+# COCA6 <- lmer(WD~Diameter + pPPTscaled * pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
+# COCA7 <- lmer(WD~Diameter +PC1fert + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
+# COCA8 <- lmer(WD~Diameter +PC2depth+ (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
+# AIC(COCAnull,COCA1,COCA2,COCA3,COCA4,COCA5,COCA6,COCA7,COCA8)[order(AIC(COCAnull,COCA1,COCA2,COCA3,COCA4,COCA5,COCA6,COCA7,COCA8)$AIC,decreasing = F),]
+COCAwd <- fit.traits(dataz=traits.b, species="COCA",trait="WD",diam=T, standBA=F)
+anova(COCAwd$PET, COCAwd$null) # p =0.04116 *
+anova(COCAwd$DBH, COCAwd$null) # p =0.1514
+
+residplots(model=COCAwd$PET, dataz=traits.b[which(traits.b$Species=="COCA" & traits.b$WD>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "COCA-PET-", Trait="WD", vers=current_version
+           , climvar="pPET")
+anova(COCAnull, COCA2)
+## PET best model for COCA, p=0.04116
+# Plot Ranefs, Tree ranefs, within plot var, and within tree var seem to increase with MD. as do resids?
+scatter.smooth(abs(resid(COCA2))~round(COCA2@frame$pPETscaled,digits = 3))
+
+COCAsite <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="COCA")
+COCAsite1 <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="COCA", weights = varIdent (form = ~1|Sitetag))
+COCAsite2 <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="COCA", weights = varPower (form = ~ pPET))
+COCAsite3 <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="COCA", weights = varConstPower (form = ~ pPET))
+AIC(COCAsite, COCAsite1, COCAsite2, COCAsite3) # 
+anova(COCAsite, COCAsite2) # might actually be a change in var with PET? 
+
+#*** does appear to be an increase in variance at drier places        
+
+
+
+
+
+
+
+
+
+### Stats for Tasssie Species ###
+# OVATnull <- lmer(WD~ Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT" , REML=F)
+# OVAT1 <- lmer(WD~pAIscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+# OVAT2 <- lmer(WD~pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+# OVAT3 <- lmer(WD~pPPTscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+# OVAT4 <- lmer(WD~pMDscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+# OVAT5 <- lmer(WD~pPPTscaled + pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+# OVAT6 <- lmer(WD~pPPTscaled * pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+# OVAT7 <- lmer(WD~Diameter + PC1fert + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+# OVAT8 <- lmer(WD~ Diameter + PC2depth+ (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+# OVAT9 <- lmer(WD~Diameter + PC2depth + PC1fert + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+# OVAT10 <- lmer(WD~Diameter + PC1fert + pPPTscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+# OVAT11<- lmer(WD~Diameter + PC2depth + pPPTscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+# OVAT12 <- lmer(WD~Diameter + PC1fert + pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+# OVAT13 <- lmer(WD~Diameter + PC2depth + pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
+# 
+# AIC(OVATnull,OVAT1,OVAT2,OVAT3,OVAT4,OVAT5,OVAT6,OVAT7,OVAT8,OVAT9,OVAT10,OVAT11,OVAT12,OVAT13)[order(AIC(OVATnull,OVAT1,OVAT2,OVAT3,OVAT4,OVAT5,OVAT6,OVAT7,OVAT8, OVAT9,OVAT10,OVAT11,OVAT12,OVAT13)$AIC,decreasing = F),]
+#   # PPT and PC1 strongly correlated, PC2 not so much. 
+# anova(OVATnull, OVAT3, OVAT5) # PPT p=0.003417, p + PET = 0.008350
+# anova(OVATnull, OVAT8, OVAT11) # PC2detph p=0.001, PC2 + PPT = 0.002535
+# anova(OVATnull, OVAT7) # PC!fert p=0.000972
+# vif.mer(OVAT6) # YIKES! Can't use that at all.
+# vif.mer(OVAT5) # can use that though
+# vif.mer(OVAT9) # a bit colinear...
+# vif.mer(OVAT11) # not colinear!
+# vif.mer(OVAT13) #medium colinear
+# # PPT + PET good and not colinear
+# # PC2 and PPT best and not colinear
+# # PC2 and PET second best and kinda colinear
+# # Soil PC1 and PC2 are actually best single predictors...
+# anova(OVATnull, OVAT8, OVAT11)
+# # trying to visualize the partial residuals:
+# PPTresid <- resid(OVAT3)
+# PETresid <- resid(OVAT2)
+# PC1resid <- resid(OVAT7)
+# PC2resid <- resid(OVAT8)
+# plot(PPTresid~pPETscaled, OVAT2@frame)
+# abline(lm(PPTresid~pPETscaled, OVAT2@frame))
+# plot(PETresid~pPPTscaled, OVAT3@frame)
+# abline(lm(PETresid~pPPTscaled, OVAT3@frame))
+# # REALLY not a strong visuall relationship there...
+# plot(PC2resid ~ pPPTscaled, OVAT3@frame)
+
+OVATwd <- fit.traits(dataz=traits.b, species="OVAT",trait="WD",diam=T, standBA=T)
+anova(OVATwd$fert, OVATwd$null) # p =0.0009721 ***
+anova(OVATwd$depth, OVATwd$null) # p =0.00111 **
+anova(OVATwd$PPT, OVATwd$null) # p=0.003417 **
+anova(OVATwd$DBH, OVATwd$null) # p=0.58
+anova(OVATwd$StandBA, OVATwd$null) # p=0.87
+
+residplots(model=OVATwd$fert, dataz=traits.b[which(traits.b$Species=="OVAT" & traits.b$WD>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "OVAT-fert", Trait="WD", vers=current_version, climvar="PC1fert")
+#looks like the PET is really needed to yank one site's plot random effects back in. otherwise, they're strong negative resids
+scatter.smooth(abs(resid(OVAT5))~round(OVAT5@frame$pPPTscaled,digits = 3))
+# not much residual pattern
+
+OVATsite <- lme(WD~Diameter + PC2depth + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0 & traits.b$Species=="OVAT"),], subset=Species=="OVAT")
+OVATsite1 <- lme(WD~Diameter + PC2depth + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OVAT"),], subset=Species=="OVAT", weights = varIdent (form = ~1|Sitetag))
+OVATsite2 <- lme(WD~Diameter + PC2depth + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OVAT"),], subset=Species=="OVAT", weights = varPower (form = ~ pPPT))
+OVATsite3 <- lme(WD~Diameter + PC2depth + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OVAT"),], subset=Species=="OVAT", weights = varConstPower (form = ~ I(pPPTscaled)))
+AIC(OVATsite, OVATsite1, OVATsite2, OVATsite3) # OVATsite is best with low df
+anova(OVATsite, OVATsite2, OVATsite3) # no change needed!
+
+
+
+
+
+
+# VIMInull <- lmer(WD~  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI" & pPPT>0, REML=F)
+# VIMI1 <- lmer(WD~pAIscaled +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI"& pPPT>0, REML=F)
+# VIMI2 <- lmer(WD~pPETscaled +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI"& pPPT>0, REML=F)
+# VIMI3 <- lmer(WD~pPPTscaled +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI"& pPPT>0, REML=F)
+# VIMI4 <- lmer(WD~pMDscaled +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI"& pPPT>0, REML=F)
+# VIMI5 <- lmer(WD~pPPTscaled + pPETscaled +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI"& pPPT>0, REML=F)
+# VIMI6 <- lmer(WD~pPPTscaled * pPETscaled +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI"& pPPT>0, REML=F)
+# VIMI7 <- lmer(WD~PC1fert + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI"& pPPT>0, REML=F)
+# VIMI8 <- lmer(WD~PC2depth+ (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI", REML=F, control=lmerControl(optimizer="Nelder_Mead"))#optCtrl = list())
+# AIC(VIMInull,VIMI1,VIMI2,VIMI3,VIMI4,VIMI5,VIMI6,VIMI7,VIMI8)[order(AIC(VIMInull,VIMI1,VIMI2,VIMI3,VIMI4,VIMI5,VIMI6,VIMI7,VIMI8)$AIC,decreasing = F),]
+# 
+# anova(VIMInull, VIMI3, VIMI5) # PPT p= 0.005161, p + PET = 0.027455
+# anova(VIMInull, VIMI7) # PC1fert p=0.0001391
+# vif.mer(VIMI5) # they're...not ridiculously colinear...
+# # PPT + PET best and not colinear
+# # PC1fert now the best by a long ways...
+# # trying to visualize the partial residuals:
+# PPTresid <- resid(VIMI3)
+# PETresid <- resid(VIMI2)
+# plot(PPTresid~pPETscaled, VIMI2@frame)
+# abline(lm(PPTresid~pPETscaled, VIMI2@frame))
+# plot(PETresid~pPPTscaled, VIMI3@frame)
+# abline(lm(PETresid~pPPTscaled, VIMI3@frame))
+# # REALLY not a strong visuall relationship there...
+VIMIwd <- fit.traits(dataz=traits.b, species="VIMI",trait="WD",diam=F, standBA=T)
+anova(VIMIwd$fert, VIMIwd$null) # p =0.0001391 ***
+anova(VIMIwd$PPT, VIMIwd$null) # p=0.005161 **
+anova(VIMIwd$DBH, VIMIwd$null) # p=0.24
+anova(VIMIwd$StandBA, VIMIwd$null) # p=0.175
+
+residplots(model=VIMIwd$fert, dataz=traits.b[which(traits.b$Species=="VIMI" & traits.b$WD>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "VIMI", Trait="WD", vers=current_version
+           , climvar= "PC1fert")
+#looks like the PET is really needed to yank one site's plot random effects back in. otherwise, they're strong negative resids
+#scatter.smooth(abs(resid(VIMI3))~round(VIMI3@frame$pPPTscaled,digits = 3))
+# not much residual pattern
+
+VIMIsite <- lme(WD~Diameter + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0 & traits.b$Species=="VIMI"),], subset=Species=="VIMI")
+VIMIsite1 <- lme(WD~Diameter + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="VIMI"),], subset=Species=="VIMI", weights = varIdent (form = ~1|Sitetag))
+VIMIsite2 <- lme(WD~Diameter + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="VIMI"),], subset=Species=="VIMI", weights = varPower (form = ~ pPPT))
+VIMIsite3 <- lme(WD~Diameter + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="VIMI"),], subset=Species=="VIMI", weights = varConstPower (form = ~ pPPT))
+AIC(VIMIsite, VIMIsite1, VIMIsite2) # VIMIsite is best with low df
+anova(VIMIsite, VIMIsite2, VIMIsite3) # no change needed!
+
+
+
+
+
+
+
+
+
+
+# 
+# 
+# AMYGnull <- lmer(WD~ Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG" & pPPT>0, REML=F)
+# AMYG1 <- lmer(WD~pAIscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)
+# AMYG2 <- lmer(WD~pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)
+# AMYG3 <- lmer(WD~pPPTscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)
+# AMYG4 <- lmer(WD~pMDscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)
+# AMYG5 <- lmer(WD~pPPTscaled + pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)
+# AMYG6 <- lmer(WD~pPPTscaled * pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)
+# AMYG7 <- lmer(WD~PC1fert + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)
+# AMYG8 <- lmer(WD~PC2depth+ Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)#optCtrl = list())
+# AIC(AMYGnull,AMYG1,AMYG2,AMYG3,AMYG4,AMYG5,AMYG6,AMYG7,AMYG8)[order(AIC(AMYGnull,AMYG1,AMYG2,AMYG3,AMYG4,AMYG5,AMYG6,AMYG7,AMYG8)$AIC,decreasing = F),]
+# anova(AMYGnull, AMYG3) # p=2.81e-05
+# anova(AMYG3, AMYG5) # p=0.06388
+# anova(AMYG5, AMYG6) # p=0.01592 
+# vif.mer(AMYG6)
+# ## PPT*PET best model, but highly colinear effects, next best is PPT + PET, but dAIC<1 from just PPT and 2 from AI. 
+# # PPT best, followed closely by AI
+# # plot(resid(AMYG3)~round(AMYG3@frame$pPPTscaled,digits = 3))
+# # no residual trend
+
+AMYGwd <- fit.traits(dataz=traits.b, species="AMYG",trait="WD",diam=T, standBA=T)
+anova(AMYGwd$PPT, AMYGwd$null) # p=2.81e-05 ***
+anova(AMYGwd$DBH, AMYGwd$null) # p=0.872
+anova(AMYGwd$StandBA, AMYGwd$null) # p=0.781
+
+residplots(model=AMYGwd$PPT, dataz=traits.b[which(traits.b$Species=="AMYG" & traits.b$WD>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "AMYG", Trait="WD", vers=current_version
+           , climvar = "pPPT")
+#scatter.smooth(abs(resid(AMYG3))~round(AMYG3@frame$pPPTscaled,digits = 3))
+# not much evidence for changing variance with drought
+
+AMYGsite <- lme(WD~Diameter + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="AMYG")
+AMYGsite1 <- lme(WD~Diameter + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="AMYG", weights = varIdent (form = ~1|Sitetag))
+AMYGsite2 <- lme(WD~Diameter + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="AMYG", weights = varPower (form = ~ pPPT))
+AMYGsite3 <- lme(WD~Diameter + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="AMYG", weights = varConstPower (form = ~ I(pPPTscaled)))
+AIC(AMYGsite, AMYGsite1, AMYGsite2, AMYGsite3) # AMYGsite is best with low df
+anova(AMYGsite, AMYGsite2) # no need for different variances
+
+
+
+
+# 
+# OBLInull <- lmer(WD~ Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI" & pPPT>0, REML=F)
+# OBLI1 <- lmer(WD~pAIscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI"& pPPT>0, REML=F)
+# OBLI2 <- lmer(WD~pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI"& pPPT>0, REML=F)
+# OBLI3 <- lmer(WD~pPPTscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI"& pPPT>0, REML=F)
+# OBLI4 <- lmer(WD~pMDscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI"& pPPT>0, REML=F)
+# OBLI5 <- lmer(WD~pPPTscaled + pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI"& pPPT>0, REML=F)
+# OBLI6 <- lmer(WD~pPPTscaled * pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI"& pPPT>0, REML=F)
+# OBLI7 <- lmer(WD~PC1fert + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI", REML=F)
+# OBLI8 <- lmer(WD~PC2depth+ Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI", REML=F)#optCtrl = list())
+# AIC(OBLInull,OBLI1,OBLI2,OBLI3,OBLI4,OBLI5,OBLI6,OBLI7,OBLI8)[order(AIC(OBLInull,OBLI1,OBLI2,OBLI3,OBLI4,OBLI5,OBLI6,OBLI7,OBLI8)$AIC,decreasing = F),]
+# 
+# anova(OBLInull, OBLI2) # p=0.01925
+# # PET best model, by a ways...
+
+OBLIwd <- fit.traits(dataz=traits.b, species="OBLI",trait="WD",diam=T, standBA=T)
+anova(OBLIwd$PET, OBLIwd$null) # p=0.01925 *
+anova(OBLIwd$DBH, OBLIwd$null) # p=0.183
+anova(OBLIwd$StandBA, OBLIwd$null) # p=0.566
+
+
+residplots(model=OBLIwd$PET, dataz=traits.b[which(traits.b$Species=="OBLI" & traits.b$WD>0),]
+           ,res.type = "pearson",mixed = T
+           , Species = "OBLI", Trait="WD", vers=current_version
+           , climvar="pPET")
+scatter.smooth(abs(resid(OBLI3))~round(OBLI3@frame$pPPTscaled,digits = 3))
+# huge withinplot and maybe within tree variance in lowest PET plot. But not much other evidence
+
+OBLIsite <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0 & traits.b$Species=="OBLI"),], subset=Species=="OBLI")
+OBLIsite1 <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OBLI"),], subset=Species=="OBLI", weights = varIdent (form = ~1|Sitetag))
+OBLIsite2 <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OBLI"),], subset=Species=="OBLI", weights = varPower (form = ~ pPET))
+OBLIsite3 <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OBLI"),], subset=Species=="OBLI", weights = varConstPower (form = ~ I(pPETscaled)))
+AIC(OBLIsite, OBLIsite1, OBLIsite2, OBLIsite3) # OBLIsite is best with low df
+anova(OBLIsite, OBLIsite2, OBLIsite3) # SUPER significant effect! p=1e-04
+scatter.smooth(abs(resid(OBLIsite3,type = "normalized"))~round(OBLIsite3$data$pPETscaled,digits = 3))
+## monotonic decrease of variance with PET is good, but a symetric increase at low and high PET is even better (like a lot better...)
+#**** Very interesting ****
+
+
+
+
+```
+
+
+
+```{r}
+
+```
+
+
 
 
 **Performing Variance Decompositions**
@@ -508,16 +1053,21 @@ Some might argue that coefficients of variation are more appropriate measures th
 ``` {r Calculate CVs}
 
 trait.means <- traits.b %>% group_by(Species) %>% summarise(WD = mean(WD, na.rm=T), LDMC=mean(LDMC, na.rm=T), LMA=mean(LMA, na.rm=T), Al_As=log(mean(Al_As, na.rm=T), base=10), hub=-1*log(mean(hub, na.rm=T), base=10)) #%>% mutate(log.Al_As = log(Al_As,base=10)) %>% select(-Al_As)
-  # NOTE: Al_As is actually log10(Al_As) but had to keem name for matching with varslong
+  # NOTE: Al_As is actually log10(hub) but had to keem name for matching with varslong
 trait.means.long <- trait.means %>% gather(trait, mean, -Species)
 trait.means.long$Species.trait <- paste(trait.means.long$Species, trait.means.long$trait, sep=".")
+
+
+varslong$meanvals <- trait.means.long$mean[match(varslong$Species.trait, trait.means.long$Species.trait)]
+varslong$CV <- with(varslong, variance^0.5 / meanvals)
+
 
 ```
 
 
-``` {r FIG 4: Barplot of Variance Decomps}
+``` {r FIG 4}
 
-
+################## FIG 4: Barplot of Variance Decomps ####################
 ## set color choices
 #pal.vardecomp <- brewer.pal(n=9, "Set1")
 pal.vardecomp <- c(paste0(brewer.pal(n=3, "Set1")[1],"66"), brewer.pal(n=9, "Blues")[c(8,5,2)])
@@ -564,3 +1114,203 @@ axis(1,at=p,labels= c("A. acu","E. sal","E. mar","C. cal","E. ova","E. vim","E. 
 quartz.save(file=paste0("./",results_dirname,"/Fig4_VarainceDecomp.pdf"),type = "pdf" )
 
 ```
+
+```{r analysis var f(clim)}
+
+####### . Statistical analysis of variance component changes with climate ########
+
+# first analyze total trait variance as function of climate
+summary(lm(variance~CMD.90, varslong[which(varslong$trait=="WD" & varslong$level=="Total" & varslong$Species!= "ACAC"),])) #ns
+summary(lm(variance~CMD.90, varslong[which(varslong$trait=="LMA" & varslong$level=="Total" & varslong$Species!= "ACAC"),])) #ns
+summary(lm(variance~CMD.90, varslong[which(varslong$trait=="LDMC" & varslong$level=="Total" & varslong$Species!= "ACAC"),])) # p= 0.95
+summary(lm(variance~CMD.90, varslong[which(varslong$trait=="hub" & varslong$level=="Total" & varslong$Species!= "ACAC"),])) #ns
+
+
+
+testWD <- lm(variance~scale(CMD.90)*level, varslong[which(varslong$trait=="WD" & varslong$level!="Total" & varslong$Species!= "ACAC"),])
+summary(testWD) # no significant changes in variance components with CMD
+
+testLMA <- lm(variance~scale(CMD.90)*level, varslong[which(varslong$trait=="LMA" & varslong$level!="Total" & varslong$Species!= "ACAC"),])
+summary(testLMA) # no significant changes in variance components with CMD
+
+testLDMC <- lm(variance~scale(CMD.90)*level, varslong[which(varslong$trait=="LDMC" & varslong$level!="Total" & varslong$Species!= "ACAC"),])
+summary(testLDMC) # significant decrease in climate related var with CMD. prob not in other components though
+  # if you relevel so w.in tree is ref, it is non-signifcant, so nothing else differs from 0.
+
+testhub <- lm(variance~scale(CMD.90)*level, varslong[which(varslong$trait=="hub" & varslong$level!="Total" & varslong$Species!= "ACAC"),])
+summary(testhub) # sig decrease in climate related var with CMD, but not others
+
+
+
+
+# just double check that variable choice doesn't matter (it doesn't. all dry range edge variables are very correlated)
+summary(lm(variance~PPT.10, varslong[which(varslong$trait=="WD" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))
+summary(lm(variance~PPT.10, varslong[which(varslong$trait=="LMA" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))
+summary(lm(variance~PPT.10, varslong[which(varslong$trait=="LDMC" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))
+summary(lm(variance~PPT.10, varslong[which(varslong$trait=="hub" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))
+
+```
+
+
+Looking for varaince patterns among species: create figure showing total varaince as a function of species 90th percentile (dry) moisture deficit and each varaince component as function of species 90th percentile MD. Also plot model fit for significant and marginally significant relationships
+ note: only for 7 eucalypts (remove Acacia)
+
+```{r FIG 5}
+
+########## FIG 5: Variance Components f(clim) ##########
+quartz(width=7.5, height=4)
+par(mfrow=c(2,4),mar=c(0,3,0,0), oma=c(4,1,2.5,1), mgp=c(3,1,0), cex=.9)
+labline = -.9
+labadj = 0.04
+palette(pal)
+## first make a row of the total variances
+plot(variance~CMD.90, varslong[which(varslong$trait=="WD" & varslong$level=="Total" & varslong$Species!= "ACAC"),]
+     , pch=16, xaxt="n", xlim=c(-50,1450), yaxt="n")
+axis(2,at=c(0.0015,0.002,0.0025,0.003), labels=c(0.0015,"",0.0025,""))
+mtext("Total Variance", side = 2, line=2.5)
+mtext("WD", side=3, line=1, font=2)
+mtext("a)",side=3, line=labline, adj=labadj)
+plot(variance~CMD.90, varslong[which(varslong$trait=="LMA" & varslong$level=="Total" & varslong$Species!= "ACAC"),]
+     , pch=16, xaxt="n", xlim=c(-50,1450), yaxt="n")
+axis(2, at=c(0.9e-5,1e-5,1.1e-5,1.2e-5,1.3e-5), labels=c(NA,"1e-5",NA,"1.2e-5",NA))#,0.00001,"",0.000012))
+mtext("LMA", side=3, line=1, font=2)
+mtext("b)",side=3, line=labline, adj=labadj)
+
+plot(variance~CMD.90, varslong[which(varslong$trait=="LDMC" & varslong$level=="Total" & varslong$Species!= "ACAC"),]
+     , pch=16, xaxt="n", xlim=c(-50,1450), ylim=c(0.001,0.0033))
+mtext("LDMC", side=3, line=1, font=2)
+abline(lm(variance~CMD.90, varslong[which(varslong$trait=="LDMC" & varslong$level=="Total" & varslong$Species!= "ACAC"),]), lwd=2, lty=2)
+mtext(text = paste("p=",round(summary(lm(variance~CMD.90, varslong[which(varslong$trait=="LDMC" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))$coefficients[2,4], digits = 2))
+      , side=3, line = -1, adj = .8)
+mtext("c)",side=3, line=labline, adj=labadj)
+
+# plot(variance~CMD.90, varslong[which(varslong$trait=="Al_As" & varslong$level=="Total" & varslong$Species!= "ACAC"),]
+#      , pch=16, xaxt="n", xlim=c(-50,1450), yaxt="n")
+# mtext(text = expression(bold(log[10](A[L]:A[S]))), side=3, line=1, font=2)
+plot(variance~CMD.90, varslong[which(varslong$trait=="hub" & varslong$level=="Total" & varslong$Species!= "ACAC"),]
+     , pch=16, xaxt="n", xlim=c(-50,1450), yaxt="n")
+mtext(text = expression(bold(log[10](HV))), side=3, line=1, font=2)
+
+axis(2,at=c(0.03,0.04,0.05,0.06), labels=c(NA,0.04, NA,0.06))
+legend("topright",legend=c("Total","btw Sites","w/in Site","w/in Plot","w/in Tree"), pch=16, col=c("black",pal[c(1,3,2,4)]),cex=.7)
+mtext("d)",side=3, line=labline, adj=labadj)
+
+
+### now a row of plots breaking out each variance component
+plot(variance*100~CMD.90, varslong[which(varslong$trait=="WD" & varslong$level!="Total" & varslong$Species!= "ACAC"),], pch=16
+     ,  col=factor(level), xlim=c(-50,1450), yaxt="n")
+axis(2, at=c(0.025, 0.05, 0.075, 0.1), labels=c(NA,0.05,NA,0.1))
+mtext("100*Var Comps", side = 2, line=2.5)
+mtext("e)",side=3, line=labline, adj=labadj)
+
+
+plot(variance*100~CMD.90, varslong[which(varslong$trait=="LMA" & varslong$level!="Total" & varslong$Species!= "ACAC"),], pch=16
+     ,  col=factor(level), xlim=c(-50,1450))
+mtext("f)",side=3, line=labline, adj=labadj)
+
+plot(variance*100~CMD.90, varslong[which(varslong$trait=="LDMC" & varslong$level!="Total" & varslong$Species!= "ACAC"),]
+     , pch=16,  col=factor(level), xlim=c(-50,1450))
+mtext("g)",side=3, line=labline, adj=labadj)
+abline(lm(variance*100~CMD.90, varslong[which(varslong$trait=="LDMC" & varslong$level=="bSite" & varslong$Species!= "ACAC"),])
+       , col=pal[1], lwd=2, xlim=c(-50,1450))
+mtext("MD of species dry range edge", side=1,line = 3, adj=1,)
+
+
+plot(variance*100~CMD.90, varslong[which(varslong$trait=="hub" & varslong$level!="Total" & varslong$Species!= "ACAC"),]
+     , pch=16,  col=factor(level), xlim=c(-50,1450))
+abline(lm(variance*100~CMD.90, varslong[which(varslong$trait=="hub" & varslong$level=="bSite" & varslong$Species!= "ACAC"),]), col=pal[1], lwd=2)
+
+mtext("h)",side=3, line=labline, adj=labadj)
+quartz.save(file=paste0("./",results_dirname,"/Fig5_VaraincebyClimate.pdf"),type = "pdf" )
+
+```
+
+
+Now repeat the same figure but with Coefficients of Variation rather than variance components.
+Results are qualitatively identical, but total variance of LDMC now significant at p=0.03
+
+```{r FIG S4}
+####### . Statistical analysis of CV component changes with climate ########
+testWD <- lm(CV~scale(CMD.90)*level, varslong[which(varslong$trait=="WD" & varslong$level!="Total" & varslong$Species!= "ACAC"),])
+summary(testWD) # no significant difference in CV
+
+testLMA <- lm(CV~scale(CMD.90)*level, varslong[which(varslong$trait=="LMA" & varslong$level!="Total" & varslong$Species!= "ACAC"),])
+summary(testLMA) # no significnat difference in CV
+
+testLDMC <- lm(CV~scale(CMD.90)*level, varslong[which(varslong$trait=="LDMC" & varslong$level!="Total" & varslong$Species!= "ACAC"),])
+summary(testLDMC) # significant decrease in climate related CV with CMD. prob not in other components though
+
+
+testhub <- lm(CV~scale(CMD.90)*level, varslong[which(varslong$trait=="hub" & varslong$level!="Total" & varslong$Species!= "ACAC"),])
+summary(testhub) # sig decrease in climate related var with CMD. no other sig differences
+
+
+summary(lm(CV~CMD.90, varslong[which(varslong$trait=="WD" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))
+summary(lm(CV~CMD.90, varslong[which(varslong$trait=="LMA" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))
+summary(lm(CV~CMD.90, varslong[which(varslong$trait=="LDMC" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))
+summary(lm(CV~CMD.90, varslong[which(varslong$trait=="Al_As" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))
+summary(lm(CV~CMD.90, varslong[which(varslong$trait=="hub" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))
+
+
+
+summary(lm(CV~PPT.10, varslong[which(varslong$trait=="WD" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))
+summary(lm(CV~PPT.10, varslong[which(varslong$trait=="LMA" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))
+summary(lm(CV~PPT.10, varslong[which(varslong$trait=="LDMC" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))
+summary(lm(CV~PPT.10, varslong[which(varslong$trait=="Al_As" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))
+
+
+
+#_______________________________________________________________________________
+########### FIG S4: CV Components f(clim) #####################################
+#_______________________________________________________________________________
+
+#quartz(width=7.5, height=4)
+pdf(file=paste0("./",results_dirname,"/FigS4_CV-vs-clim.pdf"), width=7.5, height=4)
+par(mfrow=c(2,4),mar=c(0,3,0,0), oma=c(4,1,2.5,1), mgp=c(3,1,0), cex=.9)
+
+palette(pal)
+## first make a row of the total CVs
+plot(CV~CMD.90, varslong[which(varslong$trait=="WD" & varslong$level=="Total" & varslong$Species!= "ACAC"),]
+     , pch=16, xaxt="n", xlim=c(0,1450))
+mtext("Total CV", side = 2, line=2.5)
+mtext("WD", side=3, line=1, font=2)
+
+plot(CV~CMD.90, varslong[which(varslong$trait=="LMA" & varslong$level=="Total" & varslong$Species!= "ACAC"),]
+     , pch=16, xaxt="n", xlim=c(0,1450))
+mtext("LMA", side=3, line=1, font=2)
+
+plot(CV~CMD.90, varslong[which(varslong$trait=="LDMC" & varslong$level=="Total" & varslong$Species!= "ACAC"),]
+     , pch=16, xaxt="n", xlim=c(0,1450))
+mtext("LDMC", side=3, line=1, font=2)
+abline(lm(CV~CMD.90, varslong[which(varslong$trait=="LDMC" & varslong$level=="Total" & varslong$Species!= "ACAC"),]), lwd=2, lty=1)
+mtext(text = paste("p=",round(summary(lm(CV~CMD.90, varslong[which(varslong$trait=="LDMC" & varslong$level=="Total" & varslong$Species!= "ACAC"),]))$coefficients[2,4], digits = 2))
+      , side=3, line = -1, adj = .8)
+
+# plot(CV~CMD.90, varslong[which(varslong$trait=="Al_As" & varslong$level=="Total" & varslong$Species!= "ACAC"),]
+#      , pch=16, xaxt="n", xlim=c(0,1450))
+# mtext(text = expression(bold(log[10](A[L]:A[S]))), side=3, line=1, font=2)
+plot(CV~CMD.90, varslong[which(varslong$trait=="hub" & varslong$level=="Total" & varslong$Species!= "ACAC"),]
+     , pch=16, xaxt="n", xlim=c(0,1450))
+mtext(text = expression(bold(log[10](HV))), side=3, line=1, font=2)
+
+legend("topright",legend=c("Total","btw Sites","w/in Site","w/in Plot","w/in Tree"), pch=16, col=c("black",pal[c(1,3,2,4)]),cex=.7)
+
+
+### now a row of plots breaking out each CV component
+plot(CV~CMD.90, varslong[which(varslong$trait=="WD" & varslong$level!="Total" & varslong$Species!= "ACAC"),], pch=16,  col=factor(level))
+mtext("CV of components", side = 2, line=2.5)
+
+plot(CV~CMD.90, varslong[which(varslong$trait=="LMA" & varslong$level!="Total" & varslong$Species!= "ACAC"),], pch=16,  col=factor(level))
+
+plot(CV~CMD.90, varslong[which(varslong$trait=="LDMC" & varslong$level!="Total" & varslong$Species!= "ACAC"),], pch=16,  col=factor(level))
+abline(lm(CV~CMD.90, varslong[which(varslong$trait=="LDMC" & varslong$level=="bSite" & varslong$Species!= "ACAC"),]), col=pal[1], lwd=2)
+mtext("MD of species dry range edge", side=1,line = 3, adj=1,)
+
+# plot(CV~CMD.90, varslong[which(varslong$trait=="Al_As" & varslong$level!="Total" & varslong$Species!= "ACAC"),], pch=16,  col=factor(level))
+# abline(lm(CV~CMD.90, varslong[which(varslong$trait=="Al_As" & varslong$level=="bSite" & varslong$Species!= "ACAC"),]), col=pal[1], lwd=2)
+plot(CV~CMD.90, varslong[which(varslong$trait=="hub" & varslong$level!="Total" & varslong$Species!= "ACAC"),], pch=16,  col=factor(level))
+abline(lm(CV~CMD.90, varslong[which(varslong$trait=="hub" & varslong$level=="bSite" & varslong$Species!= "ACAC"),]), col=pal[1], lwd=2)
+
+dev.off()
+```
+
