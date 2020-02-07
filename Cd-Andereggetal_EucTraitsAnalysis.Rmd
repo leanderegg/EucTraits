@@ -1,0 +1,566 @@
+---
+title: "Cd-Andereggetal_EucTraits"
+author: "LDL Anderegg"
+date: "2/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Reproducible Results for Anderegg et al. "Aridity drives coordinated trait shifts but not decreased trait variance across the geographic range of eight Australian trees"
+
+This document reproduces the analyses and figures presented in Anderegg et al. using the data currently available in the 'trait_data' directory in this github repository
+
+For questions or to report bugs, please contact Leander Anderegg: leanderegg@gmail.com
+
+Note: This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r set directories}
+# set working directory if needed:
+#setwd("")
+# create a directory for generated results
+results_dirname <- "Results_20200207"
+dir.create(results_dirname)
+```
+
+
+```{r load packages and functions, echo=F}
+require(lme4)
+require(lmerTest)
+require(nlme)
+require(RColorBrewer)
+require(dplyr)
+require(reshape2)
+require(tidyr)
+require(lmodel2)
+require(car)
+require(MuMIn)
+#source("ggplot_helpers.R") # ggplot helper functions to get rid of pesky background
+
+# set a nice palette
+pal <- brewer.pal(9, name = "Set1")
+pallight <- paste0(pal, "77")
+palette(pallight)
+
+## make a standard error function
+se <- function(x){
+  se <- sd(x, na.rm=T)/(length(na.omit(x)) ^ .5)
+  return(se)
+}
+
+#### VIF function from lmer models: (from http://jonlefcheck.net/2012/12/28/dealing-with-multicollinearity-using-variance-inflation-factors/)
+vif.mer <- function (fit) {
+  ## adapted from rms::vif
+  v <- vcov(fit)
+  nam <- names(fixef(fit))
+  ## exclude intercepts
+  ns <- sum(1 * (nam == "Intercept" | nam == "(Intercept)"))
+  if (ns > 0) {
+    v <- v[-(1:ns), -(1:ns), drop = FALSE]
+    nam <- nam[-(1:ns)]
+  }
+  d <- diag(v)^0.5
+  v <- diag(solve(v/(d %o% d)))
+  names(v) <- nam
+  v
+}
+
+# create a function for plotting SMA regression lines (Type II regressions) to data, fitted using lmodel2
+plot.MAR <- function(xvar, yvar, data, method="SMA", linecol, lwd=1, lty=1) {
+  if(method=="SMA") meth = 3
+  if(method=="MA") meth = 2
+  if(method=="OLS") meth =1
+  if(length(t(as.vector(data[!(is.na(data[,xvar]) | is.na(data[,yvar])), xvar])))<3){
+    #return(rep(NA, times=7))
+    break()
+  }
+  else{
+    if(var(data[,yvar], na.rm=T)==0){
+      break()
+    }
+    else{
+      tmp.mod <- suppressMessages(lmodel2(get(yvar)~get(xvar), data))
+      intercept <- tmp.mod$regression.results$Intercept[meth]
+      slope <- tmp.mod$regression.results$Slope[meth]
+      yhat <- tmp.mod$x * slope + intercept
+      lines(yhat[order(tmp.mod$x)]~tmp.mod$x[order(tmp.mod$x)], col=linecol, lwd=lwd, lty=lty)
+      
+    }
+  }
+}
+
+
+#Mypairs
+#Make fancy pair plots (modified from Mixed effects models and extensions in ecology with R. (2009).
+#Zuur, AF, Ieno, EN, Walker, N, Saveliev, AA, and Smith, GM. Springer.)
+Mypairs <- function(Z, col, pt.cex=0.8) {
+  MyVarx <- colnames(Z)
+  pairs(Z, labels = MyVarx,
+        cex.labels =  2,
+        lower.panel = function(x, y, digits=2, prefix="", cex.cor = 7) {
+          panel.cor(x, y, digits, prefix, cex.cor)}, 
+        upper.panel =  function(x, y) { 
+          points(x, y, 
+                 pch = 16, cex = pt.cex, 
+                 col = as.numeric(factor(col)))
+          abline(lm(y~x))})
+  #print(P)
+}
+
+
+
+```
+
+
+```{r load data, echo=FALSE}
+# import soil data from the Soil and Landscape Grid of Australia (Grundy et al. 2015)
+soilsums <- read.csv("data/Soils_summaries0-60cm_clim_20200106.csv") [,-1]
+  # this was created with the 'Cd-SoilsExtraction.R' code, also in this repo
+
+# import raw branch-level traits
+traits.b0 <- read.csv("data/TraitsAll_branch_20200206.csv", header=T, row.names = 1 )
+# NOTE: these are raw data with problematic points identified by the 'Flag_XXX' columns (outliers, young leaves, lost or damaged samples, etc identified with flag >0)
+  # kill bad trait values so I don't always have to filter them.
+traits.b0$LDMC[which(traits.b0$Flag_LDMC>0)] <- NA
+traits.b0$SLA[which(traits.b0$Flag_LDMC>0)] <- NA
+traits.b0$LMA[which(traits.b0$Flag_LDMC>0)] <- NA
+traits.b0$Al_As[which(traits.b0$Flag_Area>0)] <- NA
+traits.b0$SLA[which(traits.b0$Flag_Area>0)] <- NA
+traits.b0$LMA[which(traits.b0$Flag_Area>0)] <- NA
+
+# remove three additional outliers identified during analysis. Results are qualitatively robust to removal of these outliers.
+#WD of ACAC-PER-B-5-1 is a weird low outlier that needs removed
+traits.b0$WD[which(traits.b0$Branchtag=="ACAC-PER-B-5-1")] <- NA
+#LMA  "VIMI-FREY-C-1-c" is also weird low outlier
+traits.b0$LMA[which(traits.b0$Branchtag == "VIMI-FREY-C-1-c")] <- NA
+# bad ESAL tree for LMA, but LDMC and Al_As seem to be OK
+traits.b0$LMA[which(traits.b0$Treetag=="ESAL-BEN-C-1")] <- NA
+# calculate Huber value instead of Al_As
+traits.b0$hub <- 1/traits.b0$Al_As
+
+# merge soil data
+soils.b <- soilsums[match(traits.b0$Plottag, soilsums$Plottag),-1]
+traits.b <- data.frame(traits.b0, soils.b)
+# renaming soil for residplots function later on
+traits.b$pPC1fert <- traits.b$PC1fert
+traits.b$pPC2depth <- traits.b$PC2depth
+# ACAC has no DBHs (multistemed in general), so making a dummy value of 0 so my trait-climate model fitting function works for ACAC
+traits.b$TreeDBH[which(traits.b$Species=="ACAC")] <- 0 # fill with dummy variable so my function works for fitting trait-env models
+
+
+
+# aggregate traits to tree average 
+# (need this for most plotting, which has too much overplotting at branch level)
+traits.t0 <- data.frame(traits.b  %>% group_by (Species,Site,Plot,Tree,Plottag,Sitetag,Treetag,TreeDBH) %>% summarise(
+  AI=mean(AI), pAI = mean(pAI),  MD = mean(MD), pMD = mean(pMD),
+  PET=mean(PET),pPET=mean(pPET), PPT=mean(PPT), pPPT=mean(pPPT),
+  Lat = mean(Lat), Lon= mean(Lon), StandBA = mean(StandBA),
+  mVolume = mean(Volume, na.rm=T),  sdWD = sd(WD, na.rm=T), WD = mean(WD, na.rm=T),
+  sdLDMC = sd(LDMC, na.rm=T), LDMC = mean(LDMC, na.rm=T),sdSLA= sd(SLA, na.rm=T),
+  SLA= mean(SLA), sdLMA = sd(LMA, na.rm=T), LMA=mean(LMA),
+  avg_nleaves = mean(nleaves, na.rm=T), avg_tot_area = mean(tot_area, na.rm=T),
+  avg_area = mean(avg_area, na.rm=T), median_area = mean(median_area, na.rm=T),
+  max_area = max(max_area, na.rm=T), min_area = min(min_area, na.rm=T),
+  sdAl_As = sd(Al_As, na.rm=T), Al_As = mean(Al_As, na.rm=T),
+  sdhub = sd(hub, na.rm=T), hub = mean(hub, na.mr=T)
+)
+)
+traits.t0$pchs <- rep(16, times=length(traits.t0$Species))
+traits.t0$pchs[which(traits.t0$Species=="ACAC")]<- 3
+# add in soils data
+soils.t <- soilsums[match(traits.t0$Plottag, soilsums$Plottag),-1]
+traits.t <- data.frame(traits.t0, soils.t)
+
+
+
+# aggregate to plot level
+traits.p0 <- data.frame(traits.t %>% group_by (Species,Site,Plot,Plottag,Sitetag) %>% summarise(
+  AI=mean(AI,na.rm=T), pAI = mean(pAI,na.rm=T),  MD = mean(MD,na.rm=T), pMD = mean(pMD,na.rm=T), PET=mean(PET,na.rm=T),pPET=mean(pPET), PPT=mean(PPT), pPPT=mean(pPPT),
+  Lat = mean(Lat), Lon= mean(Lon), StandBA = mean(StandBA), meanDBH = mean(TreeDBH, na.rm=T),
+  avg_nleaves = mean(avg_nleaves), avg_area = mean(avg_area), max_area = max(max_area), min_area=min(min_area),
+  sdWD = sd(WD, na.rm=T), medWD = median(WD, na.rm=T), WD = mean(WD, na.rm=T),
+  sdSLA = sd(SLA, na.rm=T), medSLA = median(SLA, na.rm=T), SLA = mean(SLA, na.rm=T),
+  sdLMA = sd(LMA, na.rm=T), medLMA = median(LMA, na.rm=T), LMA = mean(LMA, na.rm=T),
+  sdLDMC = sd(LDMC, na.rm=T), medLDMC = median(LDMC, na.rm=T), LDMC = mean(LDMC, na.rm=T),
+  sdAl_As = sd(Al_As, na.rm=T), medAl_As = median(Al_As, na.rm=T), Al_As=mean(Al_As, na.rm=T),
+  sdhub = sd(hub, na.rm=T), medhub = median(hub, na.rm=T), hub = mean(hub, na.mr=T))
+  
+)
+# add in soils data
+soils.p <- soilsums[match(traits.p0$Plottag, soilsums$Plottag),-1]
+traits.p <- data.frame(traits.p0, soils.p)
+
+
+# aggregate to site level
+traits.s <- data.frame(traits.p %>% group_by (Species,Site,Sitetag) %>% summarise(
+  AI=mean(AI, na.rm=T),  MD = mean(MD, na.rm=T), 
+  PET=mean(PET, na.rm=T), PPT=mean(PPT, na.rm=T),
+  Lat = mean(Lat), Lon= mean(Lon), StandBA = mean(StandBA), meanDBH = mean(meanDBH, na.rm=T),
+  CLY=mean(CLY),SND=mean(SND), SLT = mean(SLT),
+  PTO=mean(PTO), NTO=mean(NTO), AWC=mean(AWC), BDW=mean(BDW),
+  ECE=mean(ECE), DES=mean(DES), DER=mean(DER), PC1fert = mean(PC1fert),
+  PC2depth=mean(PC2depth), Tmin=mean(Tmin), Elev=mean(Elev), MAT=mean(MAT),
+  avg_nleaves = mean(avg_nleaves), avg_area = mean(avg_area), max_area = max(max_area),
+  min_area=min(min_area),
+  sdWD = sd(WD, na.rm=T), medWD = median(WD, na.rm=T), WD = mean(WD, na.rm=T),
+  sdSLA = sd(SLA, na.rm=T), medSLA = median(SLA, na.rm=T), SLA = mean(SLA, na.rm=T),
+  sdLMA = sd(LMA, na.rm=T), medLMA = median(LMA, na.rm=T), LMA = mean(LMA, na.rm=T),
+  sdLDMC = sd(LDMC, na.rm=T), medLDMC = median(LDMC, na.rm=T), LDMC = mean(LDMC, na.rm=T),
+  sdAl_As = sd(Al_As, na.rm=T), medAl_As = median(Al_As, na.rm=T), Al_As=mean(Al_As, na.rm=T),
+  sdhub = sd(hub, na.rm=T), medhub = median(hub, na.rm=T), hub = mean(hub, na.mr=T)
+  )
+  
+)
+
+
+# adding log.Al_As and huber value
+traits.b$log.Al_As <- log(traits.b$Al_As, base=10)
+traits.t$log.Al_As <- log(traits.t$Al_As, base=10)
+traits.p$log.Al_As <- log(traits.p$Al_As, base=10)
+traits.s$log.Al_As <- log(traits.s$Al_As, base=10)
+
+
+traits.b$log.hub <- log(traits.b$hub, base=10)
+traits.t$log.hub <- log(traits.t$hub, base=10)
+traits.p$log.hub <- log(traits.p$hub, base=10)
+traits.s$log.hub <- log(traits.s$hub, base=10)
+
+
+
+# climate quantiles for the whole species distributions (for code used to create this, email LDL Anderegg)
+quants <- read.csv("/Users/leeanderegg/Dropbox/Trade-offs project/CombinedWATas_Trait_data/Climate_Quantiles_allspp_20180806.csv")[,-1]
+quants$Species <- quants$spp
+levels(quants$Species) <- list(ACAC="acac",ESAL="esal",EMARG="emarg",COCA="coca",OVAT="ovat",VIMI="vimi",AMYG="amyg",OBLI="obli")
+
+
+```
+
+**Visualizing Trait-Climate Relationships for Figure 1**
+
+```{r FIGURE 1}
+
+######## FIG 1: Trait-Env relationships W.HUBER ####################
+palette(pallight)
+quartz(width=3, height=6)
+par(mfrow=c(4,1), mar=c(0,3.5,0,1), mgp=c(2.2,1,0), oma=c(3.5,0,3.5,0), cex.lab=1.3)
+for( k in c("WD","LMA","LDMC")){
+
+  plot(get(k)~PPT, traits.t, pch=pchs, cex=.9, col=Species, ylab=k, xaxt="n")
+  if(k=="WD") {
+    legend(x = 100, y=1, legend =c("A. acu","E. sal","E. mar","C. cal","E. ova","E. vim","E. amy","E. obl")
+           , text.font=3, pch=c(3,rep(16, times=7)), lty=1,lwd=1.5, col=pal[c(1,5,4,3,7,8,2,6)], xpd=NA, ncol=4, bty="n")
+  }
+  for (j in 1:length(levels(traits.p$Species))){
+    i <- levels(traits.p$Species)[j] 
+    tmp <- traits.t[which(traits.t$Species==i),]
+    tmpmod <- lm(get(k)~PPT, tmp)
+    tmp1 <- arrange(data.frame(x=tmpmod$model$PPT, y=tmpmod$fitted.values),x)
+    lines(tmp1$y[c(1,nrow(tmp1))]~tmp1$x[c(1,nrow(tmp1))], col=pal[j], lwd=3)
+    #plot.MAR(xvar = "PPT", yvar = k,data= traits.p[which(traits.p$Species==i),], linecol = pal[j], lwd=3)
+  }
+}
+# add in log.huber panel
+plot(log.hub~PPT, traits.t, pch=pchs, cex=.9, col=Species, ylab="Huber Value", xaxt="n", yaxt="n")
+k <- "log.hub"
+for (j in 1:length(levels(traits.p$Species))){
+  i <- levels(traits.p$Species)[j] 
+  tmp <- traits.t[which(traits.t$Species==i),]
+  tmpmod <- lm(get(k)~PPT, tmp)
+  tmp1 <- arrange(data.frame(x=tmpmod$model$PPT, y=tmpmod$fitted.values),x)
+  lines(tmp1$y[c(1,nrow(tmp1))]~tmp1$x[c(1,nrow(tmp1))], col=pal[j], lwd=3)
+  #plot.MAR(xvar = "PPT", yvar = k,data= traits.p[which(traits.p$Species==i),], linecol = pal[j], lwd=3)
+}
+axis(2, labels = c("0.01","0.05","0.10","0.15"), at=log(c(0.01,0.05,0.10,0.15), base=10))
+axis(1)
+mtext(text = "PPT (mm)", side=1, line=2.5)
+quartz.save(file=paste0("./",results_dirname,"/Fig1_TraitClimate.pdf"),type = "pdf" )
+
+```
+
+
+**Performing Variance Decompositions**
+Approach: use mixed effects models for each species and trait with only random effects (or only branch diameter as fixed effect for WD). Then put the variance components all in one dataframe for additional analysis and visualization
+
+Note 1: theoretically it shouldn't matter whether these are nested random effects or not, as long as all the lower-level effects are globally unique IDs (according to Zuur et al. 2009).
+In practice, this seems to be qualitatively true but not precisely quantitatively true. It doesn't change any conclusions to define them as nested, but convergence becomes a MAJOR issue for some traits/species. So here I have opted to stick with independant random effects for each organizational level for computation's sake.
+
+Note 2: after an update of the {lme4} function, some of these models started throwing convergence errors. These models still appear to be fitting appropriately, and have not been tweaked to remove the error. Also 'boundary (singular) fit' warnings indicate that a variance parameter was estimated to be 0.
+
+```{r Perform Variance Decompositions}
+
+
+#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+########### *** Variance Decomposition for all species, all traits #######
+#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#++++ first for WD ++++++++++
+testACACvd <- lmer(WD~ Diameter + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ACAC")
+testESALvd <- lmer(WD~1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL")
+testEMARGvd <- lmer(WD~ Diameter + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG")
+testCOCAvd <- lmer(WD~1 + Diameter + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA")
+
+testAMYGvd <- lmer(WD ~ Diameter + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="AMYG")
+# testAMYGvd <- lmer(WD ~ Diameter + (1|Plottag/Sitetag/Treetag), traits.b, subset=Species=="AMYG")
+testOBLIvd <- lmer(WD ~ Diameter + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="OBLI")
+testOVATvd <- lmer(WD ~ Diameter + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="OVAT")
+testVIMIvd <- lmer(WD ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="VIMI")
+
+
+## now use VarCorr extractor to pull out the variance and sd (cols 4:5 of this df)
+Acac <- data.frame(VarCorr(testACACvd))
+Esal <- data.frame(VarCorr(testESALvd))
+Emarg <- data.frame(VarCorr(testEMARGvd))
+Coca <- data.frame(VarCorr(testCOCAvd))
+Ovat <- data.frame(VarCorr(testOVATvd))
+Vimi <- data.frame(VarCorr(testVIMIvd))
+Amyg <- data.frame(VarCorr(testAMYGvd))
+Obli <- data.frame(VarCorr(testOBLIvd))
+
+# make a data frame, rows are initially: between tree (within plot), between plot (within site), between site, and within tree
+variancesWD <- data.frame(Acac[,4],Esal[,4], Emarg[,4],Coca[,4], Ovat[,4], Vimi[,4], Amyg[,4], Obli[,4], row.names = c("wiPlot", "wiSite","bSite/Clim","wiTree"))
+colnames(variancesWD) <- c("ACAC", "ESAL", "EMARG", "COCA", 'OVAT', "VIMI", "AMYG", "OBLI")
+# and reorder variance componentsto make them nice plots
+variancesWD <- variancesWD[c(3,2,1,4),]
+climsens <- c("PET", "MD", "ppt", "pet","PPT+PET", "PPT", "PPT", "pet")
+
+
+
+
+
+
+
+#++++ Next for LMA ++++++++++
+  # note: raw LMAs and logged SLAs look pretty similar in a model with all spp. So I think I'll go raw LMA for the time being...
+  # The general inferences from raw LMA and logged SLA are pretty similar,
+  # with the rank orders being unchanged except for AMYG and OBLI.
+testACACvd <- lmer(LMA~ 1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ACAC")
+testESALvd <- lmer(LMA~1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL")
+testEMARGvd <- lmer(LMA~ 1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG")
+testCOCAvd <- lmer(LMA~1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA")
+
+testAMYGvd <- lmer(LMA ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="AMYG")
+testOBLIvd <- lmer(LMA ~ 1 +  (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="OBLI")
+testOVATvd <- lmer(LMA ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="OVAT")
+testVIMIvd <- lmer(LMA ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="VIMI")
+
+
+## now use VarCorr extractor to pull out the variance and sd (cols 4:5 of this df)
+Acac <- data.frame(VarCorr(testACACvd))
+Esal <- data.frame(VarCorr(testESALvd))
+Emarg <- data.frame(VarCorr(testEMARGvd))
+Coca <- data.frame(VarCorr(testCOCAvd))
+Ovat <- data.frame(VarCorr(testOVATvd))
+Vimi <- data.frame(VarCorr(testVIMIvd))
+Amyg <- data.frame(VarCorr(testAMYGvd))
+Obli <- data.frame(VarCorr(testOBLIvd))
+
+# make a data frame, rows are initially: between tree (within plot), between plot (within site), between site, and within tree
+variancesLMA <- data.frame(Acac[,4],Esal[,4], Emarg[,4],Coca[,4], Ovat[,4], Vimi[,4], Amyg[,4], Obli[,4], row.names = c("wiPlot", "wiSite","bSite/Clim","wiTree"))
+colnames(variancesLMA) <- c("ACAC", "ESAL", "EMARG", "COCA", 'OVAT', "VIMI", "AMYG", "OBLI")
+# and reorder variance componentsto make them nice plots
+variancesLMA <- variancesLMA[c(3,2,1,4),]
+
+
+
+
+
+
+
+#++++ Then LDMC ++++++++++
+testACACvd <- lmer(LDMC~ 1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ACAC")
+testESALvd <- lmer(LDMC~1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL")
+testEMARGvd <- lmer(LDMC~ 1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG")
+testCOCAvd <- lmer(LDMC~1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA")
+
+testAMYGvd <- lmer(LDMC ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="AMYG")
+testOBLIvd <- lmer(LDMC ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="OBLI")
+testOVATvd <- lmer(LDMC ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="OVAT")
+testVIMIvd <- lmer(LDMC ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="VIMI")
+
+
+## now use VarCorr extractor to pull out the variance and sd (cols 4:5 of this df)
+Acac <- data.frame(VarCorr(testACACvd))
+Esal <- data.frame(VarCorr(testESALvd))
+Emarg <- data.frame(VarCorr(testEMARGvd))
+Coca <- data.frame(VarCorr(testCOCAvd))
+Ovat <- data.frame(VarCorr(testOVATvd))
+Vimi <- data.frame(VarCorr(testVIMIvd))
+Amyg <- data.frame(VarCorr(testAMYGvd))
+Obli <- data.frame(VarCorr(testOBLIvd))
+
+# make a data frame, rows are initially: between tree (within plot), between plot (within site), between site, and within tree
+variancesLDMC <- data.frame(Acac[,4],Esal[,4], Emarg[,4],Coca[,4], Ovat[,4], Vimi[,4], Amyg[,4], Obli[,4], row.names = c("wiPlot", "wiSite","bSite/Clim","wiTree"))
+colnames(variancesLDMC) <- c("ACAC", "ESAL", "EMARG", "COCA", 'OVAT', "VIMI", "AMYG", "OBLI")
+# and reorder variance componentsto make them nice plots
+variancesLDMC <- variancesLDMC[c(3,2,1,4),]
+
+
+
+
+#++++ Next for Al_As ++++++++++
+testACACvd <- lmer(log.Al_As~ 1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ACAC")
+testESALvd <- lmer(log.Al_As~1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL")
+testEMARGvd <- lmer(log.Al_As~ 1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG")
+testCOCAvd <- lmer(log.Al_As~1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA")
+
+testAMYGvd <- lmer(log.Al_As ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="AMYG")
+testOBLIvd <- lmer(log.Al_As ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="OBLI")
+testOVATvd <- lmer(log.Al_As ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="OVAT")
+testVIMIvd <- lmer(log.Al_As ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="VIMI")
+
+
+## now use VarCorr extractor to pull out the variance and sd (cols 4:5 of this df)
+Acac <- data.frame(VarCorr(testACACvd))
+Esal <- data.frame(VarCorr(testESALvd))
+Emarg <- data.frame(VarCorr(testEMARGvd))
+Coca <- data.frame(VarCorr(testCOCAvd))
+Ovat <- data.frame(VarCorr(testOVATvd))
+Vimi <- data.frame(VarCorr(testVIMIvd))
+Amyg <- data.frame(VarCorr(testAMYGvd))
+Obli <- data.frame(VarCorr(testOBLIvd))
+
+# make a data frame, rows are initially: between tree (within plot), between plot (within site), between site, and within tree
+variancesAl_As <- data.frame(Acac[,4],Esal[,4], Emarg[,4],Coca[,4], Ovat[,4], Vimi[,4], Amyg[,4], Obli[,4], row.names = c("wiPlot", "wiSite","bSite/Clim","wiTree"))
+colnames(variancesAl_As) <- c("ACAC", "ESAL", "EMARG", "COCA", 'OVAT', "VIMI", "AMYG", "OBLI")
+# and reorder variance componentsto make them nice plots
+variancesAl_As <- variancesAl_As[c(3,2,1,4),]
+
+
+
+
+
+#++++ Next for hub ++++++++++
+# note: actually mathmatically identical to variance decomp of log.Al_As because log.Al_As = -1* log.hub
+testACACvd <- lmer(log.hub~ 1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ACAC")
+testESALvd <- lmer(log.hub~1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL")
+testEMARGvd <- lmer(log.hub~ 1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG")
+testCOCAvd <- lmer(log.hub~1 + (1|Sitetag) + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA")
+
+testAMYGvd <- lmer(log.hub ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="AMYG")
+testOBLIvd <- lmer(log.hub ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="OBLI")
+testOVATvd <- lmer(log.hub ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="OVAT")
+testVIMIvd <- lmer(log.hub ~ 1 + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b, subset=Species=="VIMI")
+
+
+## now use VarCorr extractor to pull out the variance and sd (cols 4:5 of this df)
+Acac <- data.frame(VarCorr(testACACvd))
+Esal <- data.frame(VarCorr(testESALvd))
+Emarg <- data.frame(VarCorr(testEMARGvd))
+Coca <- data.frame(VarCorr(testCOCAvd))
+Ovat <- data.frame(VarCorr(testOVATvd))
+Vimi <- data.frame(VarCorr(testVIMIvd))
+Amyg <- data.frame(VarCorr(testAMYGvd))
+Obli <- data.frame(VarCorr(testOBLIvd))
+
+# make a data frame, rows are initially: between tree (within plot), between plot (within site), between site, and within tree
+varianceshub <- data.frame(Acac[,4],Esal[,4], Emarg[,4],Coca[,4], Ovat[,4], Vimi[,4], Amyg[,4], Obli[,4], row.names = c("wiPlot", "wiSite","bSite/Clim","wiTree"))
+colnames(varianceshub) <- c("ACAC", "ESAL", "EMARG", "COCA", 'OVAT', "VIMI", "AMYG", "OBLI")
+# and reorder variance componentsto make them nice plots
+varianceshub <- varianceshub[c(3,2,1,4),]
+
+
+### Full variance decomp of all species
+
+fullWD <- lmer(WD ~ Diameter + (1|Species) + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b[-which(traits.b$Species=="ACAC"),])
+fullLDMC <- lmer(LDMC ~ 1 + (1|Species) + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b[-which(traits.b$Species=="ACAC"),])
+fullLMA <- lmer(LMA ~ 1 + (1|Species) + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b[-which(traits.b$Species=="ACAC"),])
+fullHV <- lmer(log.hub ~ 1 + (1|Species) + (1|Plottag) + (1|Sitetag) + (1|Treetag), traits.b[-which(traits.b$Species=="ACAC"),])
+WDvar <- data.frame(VarCorr(fullWD))
+LDMCvar <- data.frame(VarCorr(fullLDMC))
+LMAvar <- data.frame(VarCorr(fullLMA))
+HVvar <- data.frame(VarCorr(fullHV))
+
+variancesall <- data.frame(WDvar[,4],LMAvar[,4], LDMCvar[,4],HVvar[,4], row.names = c("wiPlot", "wiSite","bSite/Clim","bSpecies","wiTree"))
+colnames(variancesall) <- c("WD","LMA","LDMC","HV")
+# and reorder variance componentsto make them nice plots
+variancesall <- variancesall[c(4,3,2,1,5),]
+
+
+
+### .  combining variance estimates into one dataframe:  #################
+# # first make them a wide-form dataframe
+
+varswide <- data.frame(rbind(rbind(variancesWD, colSums(variancesWD)), rbind(variancesLMA, colSums(variancesLMA)),
+                             rbind(variancesLDMC, colSums(variancesLDMC)), rbind(variancesAl_As, colSums(variancesAl_As)), rbind(varianceshub, colSums(varianceshub))),"trait"=rep(c("WD","LMA","LDMC","Al_As","hub"), each=5))
+varswide$level <- rep(c("bSite","wiSite","wiPlot","wiTree","Total"), times=5)
+
+# then melt them into long form
+varslong <-melt(data = varswide, id.vars = c("trait","level") , variable.name="Species")
+colnames(varslong)[which(colnames(varslong)=="value")] <- "variance"
+# now add the species aridity niche
+
+varslong$CMD.90 <- quants$quantCMDALA.90[match(varslong$Species,quants$Species)]
+varslong$CMD.10 <- quants$quantCMDALA.10[match(varslong$Species,quants$Species)]
+varslong$PPT.10 <- quants$quantPPTALA.10[match(varslong$Species,quants$Species)]
+varslong$level <- factor(varslong$level)
+varslong$Species.trait <- with(varslong, paste(Species, trait, sep="."))
+
+```
+
+
+
+Some might argue that coefficients of variation are more appropriate measures than raw variances for analyzing the change in variance components with aridity. So this code calculates CVs for plotting SI figures.
+
+``` {r Calculate CVs}
+
+trait.means <- traits.b %>% group_by(Species) %>% summarise(WD = mean(WD, na.rm=T), LDMC=mean(LDMC, na.rm=T), LMA=mean(LMA, na.rm=T), Al_As=log(mean(Al_As, na.rm=T), base=10), hub=-1*log(mean(hub, na.rm=T), base=10)) #%>% mutate(log.Al_As = log(Al_As,base=10)) %>% select(-Al_As)
+  # NOTE: Al_As is actually log10(Al_As) but had to keem name for matching with varslong
+trait.means.long <- trait.means %>% gather(trait, mean, -Species)
+trait.means.long$Species.trait <- paste(trait.means.long$Species, trait.means.long$trait, sep=".")
+
+```
+
+
+``` {r FIG 4: Barplot of Variance Decomps}
+
+
+## set color choices
+#pal.vardecomp <- brewer.pal(n=9, "Set1")
+pal.vardecomp <- c(paste0(brewer.pal(n=3, "Set1")[1],"66"), brewer.pal(n=9, "Blues")[c(8,5,2)])
+palette(pal.vardecomp)
+# set the colors that wil denote within-species, within-genus, within family and across CWMs
+colchoices <- c(1,2,4,3,6)
+
+quartz(width=4.3,height=6.5) 
+par(mfrow=c(4,1), mar=c(1,3.6,0,1), mgp=c(2.3,1,0), oma=c(3.6,0,1.5,0), cex.lab=1.4, cex.axis=1.1)
+p<-barplot(height=as.matrix(variancesWD)
+           , beside=F, names.arg=rep(NA, times=8)
+           , col = pal.vardecomp
+           , legend.text= c("Btw Sites", "Within Site", "Within Plot", "Within Tree"), args.legend=list(bty="n", x=7, cex=1.3)
+           , ylab="Var in WD", las=3, ylim=c(0,0.008), yaxt="n")
+axis(2,at=c(0,0.002,.004,0.006,.008), labels = c("0","","0.004","",0.008))
+#text(x=p,y=colSums(variancesWD)+.001, labels=climsens, srt=90, xpd=T, font=c(2,2,1,1,2,2,2,1))
+mtext(text = "a)", side=3, adj=1, line=-.9)
+p<-barplot(height=as.matrix(variancesLMA)
+           , beside=F, names.arg=rep(NA, times=8)
+           , col = pal.vardecomp
+           , ylab="Var in LMA", las=3, ylim=c(0,2.5e-5), yaxt="n")
+mtext(text = "b)", side=3, adj=1, line=-.9)
+axis(2, at=c(0,.5e-5,1e-5,1.5e-5,2e-5), labels=c("0","","1e-5","","2e-5"))
+p<-barplot(height=as.matrix(variancesLDMC)
+           , beside=F, names.arg=rep(NA, times=8)
+           , col = pal.vardecomp
+           , ylab="Var in LDMC", las=3, yaxt="n")
+mtext(text = "c)", side=3, adj=1, line=-.9)
+axis(2,at=c(0,0.001,.002,0.003,.004), labels = c("0","","0.002","",0.004))
+# p<-barplot(height=as.matrix(variancesAl_As)
+#            , beside=F, names.arg=rep(NA, times=8)
+#            , col = pal.vardecomp
+#            #, legend.text= c("Btw Sites", "Within Site", "Within Plot", "Within Tree"), args.legend=list(bty="n")
+#            , ylab=expression(paste("Var in ",log[10](A[L]:A[S]))), las=3)
+p <- barplot(height=as.matrix(varianceshub)
+             , beside=F, names.arg=rep(NA, times=8)
+             , col=pal.vardecomp
+             , ylab=expression(paste("Var in ",log[10](HV))))
+# note: the var decomp of log.Al_As and log.hub are identical, because they are perfectly negatively correlated
+mtext(text = "d)", side=3, adj=1, line=-.9)
+
+axis(1,at=p,labels= c("A. acu","E. sal","E. mar","C. cal","E. ova","E. vim","E. amy","E. obl"),font=3, cex.axis = 1.4, tick=F,las=2)
+
+quartz.save(file=paste0("./",results_dirname,"/Fig4_VarainceDecomp.pdf"),type = "pdf" )
+
+```
