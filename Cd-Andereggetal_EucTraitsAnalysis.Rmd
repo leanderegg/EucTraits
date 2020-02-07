@@ -432,7 +432,7 @@ residplots <- function(model, dataz, climvar, res.type="normalized", Species = "
 Prior to modeling trait-env relationships for wood density, it should be noted that some species show a relationship between branch diameter and branch wood density. For these species, diameter needs to be included as a fixed covariate.
 
 
-```{r WD Trait-Env }
+```{r WD Trait-Env prelim}
 dir.create(paste0(results_dirname,"/Trait-Clim_ModCrit/WD")) # create directory for storing model criticism plots
 
 ###### . WD Trait-Environment model selection ##################
@@ -468,9 +468,9 @@ testACACd <- lmer(WD~Site + Diameter + (1|Plottag) + (1|Treetag), data = traits.
 
 # no need for diameter for:
 #ESAL, VIMI
+```
 
-
-
+``` {r WD Trait-Env ACAC}
 #+++++++++++++. ACAC +++++++++++++++++++++++++++++++++++
 
 ACACwd <- fit.traits(dataz=traits.b, trait="WD",species="ACAC",standBA=F, diam = T)
@@ -481,71 +481,39 @@ residplots(model=ACACwd$PET, dataz=traits.b[which(traits.b$Species=="ACAC" & tra
            , Species = "ACAC", Trait="WD"
            , climvar="pPET")
 
-# now test
+# now test homogeneity of variance
 ACACsite <- lme(WD~Diameter + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="ACAC")
 ACACsite1 <- lme(WD~Diameter + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="ACAC", weights = varIdent (form = ~1|Sitetag))
 ACACsite2 <- lme(WD~Diameter + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="ACAC", weights = varPower (form = ~ pPETscaled))
 ACACsite3 <- lme(WD~Diameter + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="ACAC", weights = varConstPower (form = ~ I(pPET)))
-AIC(ACACsite, ACACsite1, ACACsite2, ACACsite3) # so there's a difference bewteen sites, but it's not related to pMD (or PET or PPT)
+AIC(ACACsite, ACACsite1, ACACsite2)#, ACACsite3) # so there's a difference bewteen sites, but it's not related to pMD (or PET or PPT)
 anova(ACACsite, ACACsite1) # might actually be a change in var with plot? p=0.0299
 boxplot(resid(ACACsite)~round(traits.b$pMD[which(traits.b$Species=="ACAC" & traits.b$WD>0)], digits=0))
-#residplots(model=ACACsite, dataz=traits.b[which(traits.b$Species=="ACAC" & traits.b$WD>0),],res.type = "pearson",mixed = T)
-  ## so no evidence for increasing variance with increasing moisture avail
-  # def different variances per site, but doesn't seem to be cliamte related. There is also a hint of decreased plot-level variance with CMD and decreased tree-level variance with CMD
-# ACAC-PER-B-5-1 is a weird low outlier, need to remove for analysis
+```
 
-
-# ESALnull <- lmer(WD~ (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
-# ESAL1 <- lmer(WD~pAIscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
-# ESAL2 <- lmer(WD~pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
-# ESAL3 <- lmer(WD~pPPTscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
-# ESAL4 <- lmer(WD~pMDscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
-# ESAL5 <- lmer(WD~pPPTscaled + pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
-# ESAL6 <- lmer(WD~pPPTscaled * pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
-# ESAL7 <- lmer(WD~PC1fert + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
-# ESAL8 <- lmer(WD~PC2depth+ (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="ESAL", REML=F)
-# AIC(ESALnull,ESAL1,ESAL2,ESAL3,ESAL4,ESAL5,ESAL6,ESAL7,ESAL8)[order(AIC(ESALnull,ESAL1,ESAL2,ESAL3,ESAL4,ESAL5,ESAL6,ESAL7,ESAL8)$AIC,decreasing = F),]
-# 
-# anova(ESALnull, ESAL4) # p =9.928e-05
-## MD best predictor, with PET a close second for ESAL
-# within plot var might increase with MD
-# but between plot ran efs seems to decrease with drought
+```{r WD Trait-Env ESAL}
+#+++++++++++++. ESAL +++++++++++++++++++++++++++++++++++
+# Note: ESAL is missing some DBH measurements, so will always through an error with fit.traits because $dbh only has 84 obs. But everything else works
 ESALwd <- fit.traits(dataz=traits.b, species="ESAL",trait="WD",diam=F, standBA=F)
 anova(ESALwd$MD, ESALwd$null) # p =9.928e-05
 
 residplots(model=ESALwd$MD, dataz=traits.b[which(traits.b$Species=="ESAL" & traits.b$WD>0),]
            ,res.type = "pearson",mixed = T
-           , Species = "ESAL", Trait="WD", vers=current_version
+           , Species = "ESAL", Trait="WD"
            , climvar = "pMD")
+
+# check for homogeneity of variance
 ESALsite <- lme(WD~pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="ESAL")
 ESALsite1 <- lme(WD~pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="ESAL", weights = varIdent (form = ~1|Sitetag))
-anova(ESALsite, ESALsite1) # so at first blush, doesn't seem to be strong evidence for different variances, despite visual evidence
+ESALsite2 <- lme(WD~1 + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="ESAL", weights = varPower (form = ~ pMDscaled))
+ESALsite3 <- lme(WD~1 + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="ESAL", weights = varConstPower (form = ~ pMD))
+anova(ESALsite, ESALsite1, ESALsite2, ESALsite3) # so at first blush, doesn't seem to be strong evidence for different variances, despite visual evidence
 boxplot(resid(ESALsite)~round(traits.b$pMD[which(traits.b$Species=="ESAL" & traits.b$WD>0)], digits=0))
-scatter.smooth(abs(resid(ESAL4))~round(ESAL4@frame$pMDscaled,digits = 3))
+scatter.smooth(abs(resid(ESALwd$MD))~round(ESALwd$MD@frame$pMDscaled,digits = 3))
+```
 
 
-# EMARGnull <- lmer(WD~ Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
-# EMARG1 <- lmer(WD~pAIscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
-# EMARG2 <- lmer(WD~pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
-# EMARG3 <- lmer(WD~pPPTscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
-# EMARG4 <- lmer(WD~pMDscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
-# EMARG5 <- lmer(WD~pPPTscaled + pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
-# EMARG6 <- lmer(WD~pPPTscaled * pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
-# EMARG7 <- lmer(WD~Diameter + PC1fert + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
-# EMARG8 <- lmer(WD~Diameter + PC2depth+ (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
-# AIC(EMARGnull,EMARG1,EMARG2,EMARG3,EMARG4,EMARG5,EMARG6,EMARG7,EMARG8)[order(AIC(EMARGnull,EMARG1,EMARG2,EMARG3,EMARG4,EMARG5,EMARG6,EMARG7,EMARG8)$AIC,decreasing = F),]
-# # EMARG9 <- lmer(WD~ Diameter + PC2depth+pPPTscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="EMARG", REML=F)
-#   # worse with both
-# # EMARG8 is best
-# plot(pPPT~PC2depth, traits.p[which(traits.p$Species=="EMARG"),])
-  # and PPT and PC2 are strongly correlated. it's a water signal
-# so sticking with PPT
-# anova(EMARGnull, EMARG3)
-# ## PPT best model for EMARG, p=0.01087
-# anova(EMARG3, EMARG5)
-#   # adding PET slightly helps, p=0.08357
-# # no strong residual patterns with MD
-# anova(EMARGnull, EMARG8)
+```{r WD Trait-Env EMARG}
 
 EMARGwd <- fit.traits(dataz=traits.b, species="EMARG",trait="WD",diam=T, standBA=F)
 anova(EMARGwd$depth, EMARGwd$null) # p =0.003996
@@ -554,10 +522,13 @@ anova(EMARGwd$PPT, EMARGwd$null) # p =0.01087 *
 
 residplots(model=EMARGwd$depth, dataz=traits.b[which(traits.b$Species=="EMARG" & traits.b$WD>0),]
            ,res.type = "pearson",mixed = T
-           , Species = "EMARG", Trait="WD", vers=current_version
+           , Species = "EMARG", Trait="WD"
            , climvar="PC2depth")
-scatter.smooth(abs(resid(EMARG3))~round(EMARG3@frame$pPPTscaled,digits = 3))
-boxplot(resid(EMARG2)~round(EMARG2@frame$pPETscaled,digits = 1))
+
+# test for homogeneity of variance
+scatter.smooth(abs(resid(EMARGwd$depth))~round(EMARGwd$depth@frame$PC2depth,digits = 3))
+boxplot(resid(EMARGwd$depth)~round(EMARGwd$depth@frame$PC2depth,digits = 1))
+
 EMARGsite <- lme(WD~Diameter + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="EMARG")
 EMARGsite1 <- lme(WD~Diameter + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="EMARG", weights = varIdent (form = ~1|Sitetag))
 EMARGsite2 <- lme(WD~Diameter + pMDscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="EMARG", weights = varPower (form = ~ pPPTscaled))
@@ -566,32 +537,22 @@ anova(EMARGsite, EMARGsite2) # no need for different variances
 # PPT best, but not strong
 # plot(resid(EMARG3)~round(EMARG3@frame$pPPTscaled,digits = 3))
 # no residual trend
+```
 
+```{r WD Trait-Env COCA}
 
-# 
-# COCAnull <- lmer(WD~Diameter +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
-# COCA1 <- lmer(WD~Diameter + pAIscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
-# COCA2 <- lmer(WD~Diameter + pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
-# COCA3 <- lmer(WD~Diameter + pPPTscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
-# COCA4 <- lmer(WD~Diameter + pMDscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
-# COCA5 <- lmer(WD~Diameter + pPPTscaled + pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
-# COCA6 <- lmer(WD~Diameter + pPPTscaled * pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
-# COCA7 <- lmer(WD~Diameter +PC1fert + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
-# COCA8 <- lmer(WD~Diameter +PC2depth+ (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="COCA", REML=F)
-# AIC(COCAnull,COCA1,COCA2,COCA3,COCA4,COCA5,COCA6,COCA7,COCA8)[order(AIC(COCAnull,COCA1,COCA2,COCA3,COCA4,COCA5,COCA6,COCA7,COCA8)$AIC,decreasing = F),]
 COCAwd <- fit.traits(dataz=traits.b, species="COCA",trait="WD",diam=T, standBA=F)
 anova(COCAwd$PET, COCAwd$null) # p =0.04116 *
 anova(COCAwd$DBH, COCAwd$null) # p =0.1514
 
 residplots(model=COCAwd$PET, dataz=traits.b[which(traits.b$Species=="COCA" & traits.b$WD>0),]
            ,res.type = "pearson",mixed = T
-           , Species = "COCA-PET-", Trait="WD", vers=current_version
+           , Species = "COCA-PET-", Trait="WD"
            , climvar="pPET")
 anova(COCAnull, COCA2)
 ## PET best model for COCA, p=0.04116
-# Plot Ranefs, Tree ranefs, within plot var, and within tree var seem to increase with MD. as do resids?
-scatter.smooth(abs(resid(COCA2))~round(COCA2@frame$pPETscaled,digits = 3))
 
+# test for homogeneity of variances
 COCAsite <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="COCA")
 COCAsite1 <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="COCA", weights = varIdent (form = ~1|Sitetag))
 COCAsite2 <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="COCA", weights = varPower (form = ~ pPET))
@@ -600,57 +561,11 @@ AIC(COCAsite, COCAsite1, COCAsite2, COCAsite3) #
 anova(COCAsite, COCAsite2) # might actually be a change in var with PET? 
 
 #*** does appear to be an increase in variance at drier places        
+```
 
 
 
-
-
-
-
-
-
-### Stats for Tasssie Species ###
-# OVATnull <- lmer(WD~ Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT" , REML=F)
-# OVAT1 <- lmer(WD~pAIscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
-# OVAT2 <- lmer(WD~pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
-# OVAT3 <- lmer(WD~pPPTscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
-# OVAT4 <- lmer(WD~pMDscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
-# OVAT5 <- lmer(WD~pPPTscaled + pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
-# OVAT6 <- lmer(WD~pPPTscaled * pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
-# OVAT7 <- lmer(WD~Diameter + PC1fert + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
-# OVAT8 <- lmer(WD~ Diameter + PC2depth+ (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
-# OVAT9 <- lmer(WD~Diameter + PC2depth + PC1fert + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
-# OVAT10 <- lmer(WD~Diameter + PC1fert + pPPTscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
-# OVAT11<- lmer(WD~Diameter + PC2depth + pPPTscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
-# OVAT12 <- lmer(WD~Diameter + PC1fert + pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
-# OVAT13 <- lmer(WD~Diameter + PC2depth + pPETscaled + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT", REML=F)
-# 
-# AIC(OVATnull,OVAT1,OVAT2,OVAT3,OVAT4,OVAT5,OVAT6,OVAT7,OVAT8,OVAT9,OVAT10,OVAT11,OVAT12,OVAT13)[order(AIC(OVATnull,OVAT1,OVAT2,OVAT3,OVAT4,OVAT5,OVAT6,OVAT7,OVAT8, OVAT9,OVAT10,OVAT11,OVAT12,OVAT13)$AIC,decreasing = F),]
-#   # PPT and PC1 strongly correlated, PC2 not so much. 
-# anova(OVATnull, OVAT3, OVAT5) # PPT p=0.003417, p + PET = 0.008350
-# anova(OVATnull, OVAT8, OVAT11) # PC2detph p=0.001, PC2 + PPT = 0.002535
-# anova(OVATnull, OVAT7) # PC!fert p=0.000972
-# vif.mer(OVAT6) # YIKES! Can't use that at all.
-# vif.mer(OVAT5) # can use that though
-# vif.mer(OVAT9) # a bit colinear...
-# vif.mer(OVAT11) # not colinear!
-# vif.mer(OVAT13) #medium colinear
-# # PPT + PET good and not colinear
-# # PC2 and PPT best and not colinear
-# # PC2 and PET second best and kinda colinear
-# # Soil PC1 and PC2 are actually best single predictors...
-# anova(OVATnull, OVAT8, OVAT11)
-# # trying to visualize the partial residuals:
-# PPTresid <- resid(OVAT3)
-# PETresid <- resid(OVAT2)
-# PC1resid <- resid(OVAT7)
-# PC2resid <- resid(OVAT8)
-# plot(PPTresid~pPETscaled, OVAT2@frame)
-# abline(lm(PPTresid~pPETscaled, OVAT2@frame))
-# plot(PETresid~pPPTscaled, OVAT3@frame)
-# abline(lm(PETresid~pPPTscaled, OVAT3@frame))
-# # REALLY not a strong visuall relationship there...
-# plot(PC2resid ~ pPPTscaled, OVAT3@frame)
+``` {r WD Trait-Env OVAT}
 
 OVATwd <- fit.traits(dataz=traits.b, species="OVAT",trait="WD",diam=T, standBA=T)
 anova(OVATwd$fert, OVATwd$null) # p =0.0009721 ***
@@ -661,47 +576,21 @@ anova(OVATwd$StandBA, OVATwd$null) # p=0.87
 
 residplots(model=OVATwd$fert, dataz=traits.b[which(traits.b$Species=="OVAT" & traits.b$WD>0),]
            ,res.type = "pearson",mixed = T
-           , Species = "OVAT-fert", Trait="WD", vers=current_version, climvar="PC1fert")
-#looks like the PET is really needed to yank one site's plot random effects back in. otherwise, they're strong negative resids
-scatter.smooth(abs(resid(OVAT5))~round(OVAT5@frame$pPPTscaled,digits = 3))
-# not much residual pattern
+           , Species = "OVAT-fert", Trait="WD", climvar="PC1fert")
 
-OVATsite <- lme(WD~Diameter + PC2depth + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0 & traits.b$Species=="OVAT"),], subset=Species=="OVAT")
-OVATsite1 <- lme(WD~Diameter + PC2depth + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OVAT"),], subset=Species=="OVAT", weights = varIdent (form = ~1|Sitetag))
-OVATsite2 <- lme(WD~Diameter + PC2depth + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OVAT"),], subset=Species=="OVAT", weights = varPower (form = ~ pPPT))
-OVATsite3 <- lme(WD~Diameter + PC2depth + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OVAT"),], subset=Species=="OVAT", weights = varConstPower (form = ~ I(pPPTscaled)))
+## test for homogeneity of variances
+OVATsite <- lme(WD~Diameter + PC1fert , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0 & traits.b$Species=="OVAT"),], subset=Species=="OVAT")
+OVATsite1 <- lme(WD~Diameter + PC1fert , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OVAT"),], subset=Species=="OVAT", weights = varIdent (form = ~1|Sitetag))
+OVATsite2 <- lme(WD~Diameter + PC1fert , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OVAT"),], subset=Species=="OVAT", weights = varPower (form = ~ PC1fert))
+OVATsite3 <- lme(WD~Diameter + PC1fert , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OVAT"),], subset=Species=="OVAT", weights = varConstPower (form = ~ I(PC1fert)))
 AIC(OVATsite, OVATsite1, OVATsite2, OVATsite3) # OVATsite is best with low df
 anova(OVATsite, OVATsite2, OVATsite3) # no change needed!
 
+```
 
 
 
-
-
-# VIMInull <- lmer(WD~  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI" & pPPT>0, REML=F)
-# VIMI1 <- lmer(WD~pAIscaled +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI"& pPPT>0, REML=F)
-# VIMI2 <- lmer(WD~pPETscaled +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI"& pPPT>0, REML=F)
-# VIMI3 <- lmer(WD~pPPTscaled +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI"& pPPT>0, REML=F)
-# VIMI4 <- lmer(WD~pMDscaled +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI"& pPPT>0, REML=F)
-# VIMI5 <- lmer(WD~pPPTscaled + pPETscaled +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI"& pPPT>0, REML=F)
-# VIMI6 <- lmer(WD~pPPTscaled * pPETscaled +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI"& pPPT>0, REML=F)
-# VIMI7 <- lmer(WD~PC1fert + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI"& pPPT>0, REML=F)
-# VIMI8 <- lmer(WD~PC2depth+ (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="VIMI", REML=F, control=lmerControl(optimizer="Nelder_Mead"))#optCtrl = list())
-# AIC(VIMInull,VIMI1,VIMI2,VIMI3,VIMI4,VIMI5,VIMI6,VIMI7,VIMI8)[order(AIC(VIMInull,VIMI1,VIMI2,VIMI3,VIMI4,VIMI5,VIMI6,VIMI7,VIMI8)$AIC,decreasing = F),]
-# 
-# anova(VIMInull, VIMI3, VIMI5) # PPT p= 0.005161, p + PET = 0.027455
-# anova(VIMInull, VIMI7) # PC1fert p=0.0001391
-# vif.mer(VIMI5) # they're...not ridiculously colinear...
-# # PPT + PET best and not colinear
-# # PC1fert now the best by a long ways...
-# # trying to visualize the partial residuals:
-# PPTresid <- resid(VIMI3)
-# PETresid <- resid(VIMI2)
-# plot(PPTresid~pPETscaled, VIMI2@frame)
-# abline(lm(PPTresid~pPETscaled, VIMI2@frame))
-# plot(PETresid~pPPTscaled, VIMI3@frame)
-# abline(lm(PETresid~pPPTscaled, VIMI3@frame))
-# # REALLY not a strong visuall relationship there...
+``` {r WD Trait-Env VIMI}
 VIMIwd <- fit.traits(dataz=traits.b, species="VIMI",trait="WD",diam=F, standBA=T)
 anova(VIMIwd$fert, VIMIwd$null) # p =0.0001391 ***
 anova(VIMIwd$PPT, VIMIwd$null) # p=0.005161 **
@@ -710,18 +599,17 @@ anova(VIMIwd$StandBA, VIMIwd$null) # p=0.175
 
 residplots(model=VIMIwd$fert, dataz=traits.b[which(traits.b$Species=="VIMI" & traits.b$WD>0),]
            ,res.type = "pearson",mixed = T
-           , Species = "VIMI", Trait="WD", vers=current_version
+           , Species = "VIMI", Trait="WD"
            , climvar= "PC1fert")
-#looks like the PET is really needed to yank one site's plot random effects back in. otherwise, they're strong negative resids
-#scatter.smooth(abs(resid(VIMI3))~round(VIMI3@frame$pPPTscaled,digits = 3))
-# not much residual pattern
 
+# Test for homogeneity of variance
 VIMIsite <- lme(WD~Diameter + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0 & traits.b$Species=="VIMI"),], subset=Species=="VIMI")
 VIMIsite1 <- lme(WD~Diameter + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="VIMI"),], subset=Species=="VIMI", weights = varIdent (form = ~1|Sitetag))
 VIMIsite2 <- lme(WD~Diameter + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="VIMI"),], subset=Species=="VIMI", weights = varPower (form = ~ pPPT))
 VIMIsite3 <- lme(WD~Diameter + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="VIMI"),], subset=Species=="VIMI", weights = varConstPower (form = ~ pPPT))
 AIC(VIMIsite, VIMIsite1, VIMIsite2) # VIMIsite is best with low df
 anova(VIMIsite, VIMIsite2, VIMIsite3) # no change needed!
+```
 
 
 
@@ -729,29 +617,7 @@ anova(VIMIsite, VIMIsite2, VIMIsite3) # no change needed!
 
 
 
-
-
-
-# 
-# 
-# AMYGnull <- lmer(WD~ Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG" & pPPT>0, REML=F)
-# AMYG1 <- lmer(WD~pAIscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)
-# AMYG2 <- lmer(WD~pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)
-# AMYG3 <- lmer(WD~pPPTscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)
-# AMYG4 <- lmer(WD~pMDscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)
-# AMYG5 <- lmer(WD~pPPTscaled + pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)
-# AMYG6 <- lmer(WD~pPPTscaled * pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)
-# AMYG7 <- lmer(WD~PC1fert + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)
-# AMYG8 <- lmer(WD~PC2depth+ Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="AMYG"& pPPT>0, REML=F)#optCtrl = list())
-# AIC(AMYGnull,AMYG1,AMYG2,AMYG3,AMYG4,AMYG5,AMYG6,AMYG7,AMYG8)[order(AIC(AMYGnull,AMYG1,AMYG2,AMYG3,AMYG4,AMYG5,AMYG6,AMYG7,AMYG8)$AIC,decreasing = F),]
-# anova(AMYGnull, AMYG3) # p=2.81e-05
-# anova(AMYG3, AMYG5) # p=0.06388
-# anova(AMYG5, AMYG6) # p=0.01592 
-# vif.mer(AMYG6)
-# ## PPT*PET best model, but highly colinear effects, next best is PPT + PET, but dAIC<1 from just PPT and 2 from AI. 
-# # PPT best, followed closely by AI
-# # plot(resid(AMYG3)~round(AMYG3@frame$pPPTscaled,digits = 3))
-# # no residual trend
+```{r WD Trait-Env AMYG}
 
 AMYGwd <- fit.traits(dataz=traits.b, species="AMYG",trait="WD",diam=T, standBA=T)
 anova(AMYGwd$PPT, AMYGwd$null) # p=2.81e-05 ***
@@ -760,7 +626,7 @@ anova(AMYGwd$StandBA, AMYGwd$null) # p=0.781
 
 residplots(model=AMYGwd$PPT, dataz=traits.b[which(traits.b$Species=="AMYG" & traits.b$WD>0),]
            ,res.type = "pearson",mixed = T
-           , Species = "AMYG", Trait="WD", vers=current_version
+           , Species = "AMYG", Trait="WD"
            , climvar = "pPPT")
 #scatter.smooth(abs(resid(AMYG3))~round(AMYG3@frame$pPPTscaled,digits = 3))
 # not much evidence for changing variance with drought
@@ -771,24 +637,11 @@ AMYGsite2 <- lme(WD~Diameter + pPPTscaled , random = ~ 1 | Plottag/Treetag, data
 AMYGsite3 <- lme(WD~Diameter + pPPTscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0),], subset=Species=="AMYG", weights = varConstPower (form = ~ I(pPPTscaled)))
 AIC(AMYGsite, AMYGsite1, AMYGsite2, AMYGsite3) # AMYGsite is best with low df
 anova(AMYGsite, AMYGsite2) # no need for different variances
+```
 
 
 
-
-# 
-# OBLInull <- lmer(WD~ Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI" & pPPT>0, REML=F)
-# OBLI1 <- lmer(WD~pAIscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI"& pPPT>0, REML=F)
-# OBLI2 <- lmer(WD~pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI"& pPPT>0, REML=F)
-# OBLI3 <- lmer(WD~pPPTscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI"& pPPT>0, REML=F)
-# OBLI4 <- lmer(WD~pMDscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI"& pPPT>0, REML=F)
-# OBLI5 <- lmer(WD~pPPTscaled + pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI"& pPPT>0, REML=F)
-# OBLI6 <- lmer(WD~pPPTscaled * pPETscaled + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI"& pPPT>0, REML=F)
-# OBLI7 <- lmer(WD~PC1fert + Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI", REML=F)
-# OBLI8 <- lmer(WD~PC2depth+ Diameter + (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OBLI", REML=F)#optCtrl = list())
-# AIC(OBLInull,OBLI1,OBLI2,OBLI3,OBLI4,OBLI5,OBLI6,OBLI7,OBLI8)[order(AIC(OBLInull,OBLI1,OBLI2,OBLI3,OBLI4,OBLI5,OBLI6,OBLI7,OBLI8)$AIC,decreasing = F),]
-# 
-# anova(OBLInull, OBLI2) # p=0.01925
-# # PET best model, by a ways...
+``` {r WD Trait-Env OBLI}
 
 OBLIwd <- fit.traits(dataz=traits.b, species="OBLI",trait="WD",diam=T, standBA=T)
 anova(OBLIwd$PET, OBLIwd$null) # p=0.01925 *
@@ -798,20 +651,18 @@ anova(OBLIwd$StandBA, OBLIwd$null) # p=0.566
 
 residplots(model=OBLIwd$PET, dataz=traits.b[which(traits.b$Species=="OBLI" & traits.b$WD>0),]
            ,res.type = "pearson",mixed = T
-           , Species = "OBLI", Trait="WD", vers=current_version
+           , Species = "OBLI", Trait="WD"
            , climvar="pPET")
-scatter.smooth(abs(resid(OBLI3))~round(OBLI3@frame$pPPTscaled,digits = 3))
-# huge withinplot and maybe within tree variance in lowest PET plot. But not much other evidence
 
+#Test for homogeneity of variances
 OBLIsite <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0 & traits.b$Species=="OBLI"),], subset=Species=="OBLI")
 OBLIsite1 <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OBLI"),], subset=Species=="OBLI", weights = varIdent (form = ~1|Sitetag))
 OBLIsite2 <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OBLI"),], subset=Species=="OBLI", weights = varPower (form = ~ pPET))
-OBLIsite3 <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OBLI"),], subset=Species=="OBLI", weights = varConstPower (form = ~ I(pPETscaled)))
-AIC(OBLIsite, OBLIsite1, OBLIsite2, OBLIsite3) # OBLIsite is best with low df
+OBLIsite3 <- lme(WD~Diameter + pPETscaled , random = ~ 1 | Plottag/Treetag, data = traits.b[which(traits.b$WD>0& traits.b$Species=="OBLI"),], subset=Species=="OBLI", weights = varConstPower (form = ~ I(pPET-800)))
+AIC(OBLIsite, OBLIsite1, OBLIsite2, OBLIsite3) 
 anova(OBLIsite, OBLIsite2, OBLIsite3) # SUPER significant effect! p=1e-04
 scatter.smooth(abs(resid(OBLIsite3,type = "normalized"))~round(OBLIsite3$data$pPETscaled,digits = 3))
-## monotonic decrease of variance with PET is good, but a symetric increase at low and high PET is even better (like a lot better...)
-#**** Very interesting ****
+## monotonic decrease of variance with PET is good
 
 
 
