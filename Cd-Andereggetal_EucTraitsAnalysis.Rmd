@@ -1830,6 +1830,7 @@ dev.off()
 
 
 
+
 ``` {r FIG 6}
 ###### FIG6: variances as f(clim) ############
 
@@ -1841,9 +1842,10 @@ res.type="pearson"
 palvars <- paste0(brewer.pal(n=9, "Set1"), "AA")
 colchoices <- c(1,2,4,3,6)
 
-model <-  lmer(LMA~pMDscaled +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT"& pPPT>0, REML=F)
-climvar<- "MD"
-dataz <- traits.b[which(traits.b$Species=="OVAT" & traits.b$pPPT>0 & traits.b$LMA>0),]
+climvar<- "PPT"
+model <-  lmer(LDMC~get(paste0("p",climvar,"scaled")) +  (1|Plottag) + (1|Treetag), data = traits.b, subset=Species=="OVAT"& pPPT>0, REML=F)
+
+dataz <- traits.b[which(traits.b$Species=="OVAT" & traits.b$pPPT>0 & traits.b$LDMC>0),]
   ref.group <- ranef(model)
   ref.var.group1 <- tapply(residuals(model, type="pearson", level=1),
                            dataz[,names(ref.group[1])], var)
@@ -1880,12 +1882,12 @@ colchoices <- c(1,2,4,3)
 quartz(width=7, height=4)
 par(mfrow=c(1,2), mar=c(4,4,1,1), oma=c(0,0,2,5), mgp=c(2,.7,0))
 
-plot(sqrt(ref.group[[1]]$var)~ref.group[[1]][,paste0("p",climvar)], ylab="SD of LMA (g/cm2)", col="grey", xlab="Moisture Deficit (mm)")
+plot(sqrt(ref.group[[1]]$var)~ref.group[[1]][,paste0("p",climvar)], ylab="SD of LDMC (g/cm2)", col="grey", xlab=paste(climvar,"(mm)"))#"Moisture Deficit (mm)")
 points(sqrt(ref.group[[2]]$var)~ref.group[[2]][,paste0("p",climvar)], pch=16, cex=1.5)
 
-# plot(sdLMA~pPPT, traits.t[which(traits.t$Species=="OVAT"),], ylab="SD of LMA (g/cm2)", col="grey", xlab="Mean annual PPT (mm)")
-# points(sdLMA~pPPT, traits.p[which(traits.p$Species=="OVAT"),], pch=16, cex=1.5)
-# summary(lm(sdLMA~pPPT, traits.p[which(traits.p$Species=="OVAT"),]))
+# plot(sdLDMC~pPPT, traits.t[which(traits.t$Species=="OVAT"),], ylab="SD of LDMC (g/cm2)", col="grey", xlab="Mean annual PPT (mm)")
+# points(sdLDMC~pPPT, traits.p[which(traits.p$Species=="OVAT"),], pch=16, cex=1.5)
+# summary(lm(sdLDMC~pPPT, traits.p[which(traits.p$Species=="OVAT"),]))
 
 abline(lm(sqrt(ref.group[[2]]$var)~ref.group[[2]][,paste0("p",climvar)]), lwd=2)
 abline(lm(sqrt(ref.group[[1]]$var)~ref.group[[1]][,paste0("p",climvar)]), lwd=2, col="grey")
@@ -1897,9 +1899,10 @@ legend(x=4.8, y=4, legend=c("increase","no trend","non-aridity","decrease"), tit
 axis(1,at = b,labels = c("WD","LMA","LDMC","log(HV)"), las=2, tick = F, mgp=c(2,.2,0))
 mtext(3,adj=0, text="b)", line=.4)
 
-quartz.save(file=paste0("./",results_dirname,"/Fig6_VarPatterns.pdf"),type = "pdf" )
+quartz.save(file=paste0("./",results_dirname,"/Fig6_VarPatterns_test8.pdf"),type = "pdf" )
 
 
 ```
+
 
 
