@@ -279,7 +279,8 @@ respats <- read.csv("data/Resid_Patterns_20200526.csv") # updated with NP R2R
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ######## . FIG 1: Trait-Env relationships W.HUBER & MD Chelsa ####################
 palette(pallight)
-quartz(width=3.4, height=6)
+#quartz(width=3.4, height=6)
+jpeg(file=paste0("./",results_dirname,"/Fig1_TraitClimate_ChelsaMD.jpg"), width=3.4, height=6, units = "in",res = 600)
 par(mfrow=c(4,1), mar=c(0,4,0,1), mgp=c(2.2,1,0), oma=c(3.5,0,3.5,0), cex.lab=1.3)
 for( pp in c(1:3)){
   k <- c("WD","LMA","LDMC")[pp]
@@ -323,8 +324,8 @@ axis(2, labels = c("0.01","0.05","0.10","0.15"), at=log(c(0.01,0.05,0.10,0.15), 
 axis(1)
 mtext(text = "MD (PET-PPT, mm)", side=1, line=2.5)
 mtext(expression(paste("HV ",(mm^2/cm^2))), side=2, line=2.2, font=2)
-quartz.save(file=paste0("./",results_dirname,"/Fig1_TraitClimate_ChelsaMD.pdf"),type = "pdf" )
-
+#quartz.save(file=paste0("./",results_dirname,"/Fig1_TraitClimate_ChelsaMD.pdf"),type = "pdf" )
+dev.off()
 
 
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -2748,13 +2749,14 @@ palette(pallight)
 # par(mfrow=c(2,3), mar=c(3.5,3.5,1,1), mgp=c(2,1,0), cex.lab=1.5, oma=c(0,0,2,0))
 
 
-quartz(width=7.2, height=4)
+#quartz(width=7.4, height=4.1)
+jpeg(file=paste0("./",results_dirname,"/Fig2_TraitCorrelations.jpg"), width=7.4, height=4.1, res=600, units="in")
 mymat <- matrix(c(1,2,3,7
                   ,4,5,6,7), nrow=2, byrow=T)
 layout(mat = mymat)#,widths = c(.9,.9,.9,1.3))
-par( mar=c(3.5,3.6,1,.5), mgp=c(2.2,1,0), cex.lab=1.5, oma=c(0,0,2,0))
+par( mar=c(3.6,3.7,1,.5), mgp=c(2,.7,0), cex.lab=1.4, oma=c(0,.2,2,0))
 
-plot(WD~LDMC, traits.t, pch=pchs, cex=.9, col=Species)
+plot(WD~LDMC, traits.t, pch=pchs, cex=.9, col=Species, ylab = expression(paste("WD ",(g/cm^3))), xlab="LDMC (g/g)")
 n_sig <- 0
 cors <- rep(NA, times=8)
 for (j in 1:length(levels(traits.t$Species))){
@@ -2776,7 +2778,7 @@ mtext(text = paste0("(",round(min(cors),2),"-",round(max(cors),2),")"), side=3, 
 #        , text.font=3, pch=c(3, rep(16, times=7)), col=pal[c(1,5,4,3,7,8,2,6)], xpd=NA, ncol=8, bty="n")
 
 
-plot(WD~LMA, traits.t, pch=pchs, cex=.9, col=Species)
+plot(WD~LMA, traits.t, pch=pchs, cex=.9, col=Species,ylab=expression(paste("WD ",(g/cm^3))), xlab=expression(paste("LMA ",(g/cm^2))))
 n_sig <- 0
 cors <- rep(NA, times=8)
 for (j in 1:length(levels(traits.t$Species))){
@@ -2796,7 +2798,7 @@ mtext(text = paste(n_sig,"8", sep="/"), side = 3, line= -1.3, adj=.1)
 mtext(text = paste0("(",round(min(cors),2),"-",round(max(cors),2),")"), side=3, line=-2,adj=.05, cex=.7)
 
 
-plot(LMA~LDMC, traits.t, pch=pchs, cex=.9, col=Species)
+plot(LMA~LDMC, traits.t, pch=pchs, cex=.9, col=Species, ylab=expression(paste("LMA ",(g/cm^2))), xlab="LDMC (g/g)")
 n_sig <- 0
 cors <- rep(NA, times=8)
 for (j in 1:length(levels(traits.t$Species))){
@@ -2819,7 +2821,7 @@ mtext(text = paste0("(",round(min(cors),2),"-",round(max(cors),2),")"), side=3, 
 
 
 
-plot(log.hub~LDMC, traits.t, pch=pchs, cex=.9, col=Species, ylab=expression(paste(log[10](HV))))
+plot(log.hub~LDMC, traits.t, pch=pchs, cex=.9, col=Species, ylab=expression(paste(log[10](HV))), xlab="LDMC (g/g)")
 n_sig <- 0
 cors <- rep(NA, times=8)
 for (j in 1:length(levels(traits.t$Species))){
@@ -2840,7 +2842,7 @@ mtext(text = paste0("(",round(min(cors),2),"-",round(max(cors),2),")"), side=1, 
 
 
 
-plot(log.hub~LMA, traits.t, pch=pchs, cex=.9, col=Species, ylab=expression(paste(log[10](HV))))
+plot(log.hub~LMA, traits.t, pch=pchs, cex=.9, col=Species, ylab=expression(paste(log[10](HV))), xlab=expression(paste("LMA ", (g/cm^2))))
 n_sig <- 0
 cors <- rep(NA, times=8)
 for (j in 1:length(levels(traits.t$Species))){
@@ -2861,7 +2863,7 @@ mtext(text = paste0("(",round(min(cors),2),"-",round(max(cors),2),")"), side=1, 
 
 
 
-plot(log.hub~WD, traits.t, pch=pchs, cex=.9, col=Species, ylab=expression(paste(log[10](HV))))
+plot(log.hub~WD, traits.t, pch=pchs, cex=.9, col=Species, ylab=expression(paste(log[10](HV))), xlab=expression(paste("WD ", (g/cm^3))))
 n_sig <- 0
 cors <- rep(NA, times=8)
 for (j in 1:length(levels(traits.t$Species))){
@@ -2905,8 +2907,8 @@ legend('top',inset = -.25,xpd=NA, horiz = F, legend=c("branch","individ","site")
 mtext("g)",side=3, line=letlin, adj=letadj)
 legend(x=-0.25, y=3.5,xjust=.5, legend =c("A. acu","E. sal","E. mar","C. cal","E. ova","E. vim","E. amy","E. obl")
        , text.font=3, pch=c(3, rep(16, times=7)), col=pal[c(1,5,4,3,7,8,2,6)], xpd=NA, ncol=3)
-
-quartz.save(file=paste0("./",results_dirname,"/Fig2_TraitCorrelations.pdf"),type = "pdf" )
+dev.off()
+#quartz.save(file=paste0("./",results_dirname,"/Fig2_TraitCorrelations.pdf"),type = "pdf" )
 
 
 
@@ -2969,6 +2971,7 @@ traits.s <- data.frame(traits.s, SitePCs)
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ####################### . FIG 3: PC1 vs MDc ##############################
 quartz(width=4, height=4)
+#jpeg(file=paste0("./",results_dirname,"/Fig3_TraitCorrelations.jpg"), width=7.4, height=4.1, res=600, units="in")
 par(mar=c(3.5,3.5,1,1), mgp=c(2.5,1,0))
 palette(pal)
 plot(PC1~MDc, traits.s, pch=ifelse(Species=="ACAC",3,16), col=Species, ylab="site PC1 score", xlab="Moisture Deficit (PET-PPT, mm)")
@@ -3304,7 +3307,8 @@ palette(pal.vardecomp)
 colchoices <- c(1,2,4,3,6)
 
 
-quartz(width=4.3,height=6.4) 
+#quartz(width=4.3,height=6.4) 
+jpeg(file=paste0("./",results_dirname,"/Fig4_VarainceDecomp_scaled.jpg"), width=4.3, height=6.4, units="in", res=600)
 par(mfrow=c(4,1), mar=c(1,3.6,1,3.6), mgp=c(2.3,1,0), oma=c(3.6,0,3,0), cex.lab=1.4, cex.axis=1.1)
 p<-barplot(height=as.matrix(scaledvariancesWD)
            , beside=F, names.arg=rep(NA, times=8)
@@ -3360,8 +3364,8 @@ mtext(text = "d)", side=3, adj=-0.12, line=.2)
 axis(4,at=seq(from=0,to=0.06, by=0.02)/max(totalvarianceshub), labels=c("0","2e-3",NA,"4e-3"),col="#333333", col.axis="#333333")
 
 axis(1,at=p,labels= c("A. acu","E. sal","E. mar","C. cal","E. ova","E. vim","E. amy","E. obl"),font=3, cex.axis = 1.4, tick=F,las=2)
-
-quartz.save(file=paste0("./",results_dirname,"/Fig4_VarainceDecomp_scaled.pdf"),type = "pdf" )
+dev.off()
+#quartz.save(file=paste0("./",results_dirname,"/Fig4_VarainceDecomp_scaled.pdf"),type = "pdf" )
 
 
 
@@ -3385,7 +3389,8 @@ quartz.save(file=paste0("./",results_dirname,"/FigS7_VarainceDecomp_scaled_fulld
 ########### . FIGURE 5: Variance Components f(clim) #####################################
 #_______________________________________________________________________________
 
-quartz(width=7.5, height=4)
+#quartz(width=7.5, height=4)
+jpeg(file=paste0("./",results_dirname,"/Fig5_VaraincebyClimate_MD50.jpg"), height=4, width=7.5, units="in", res=600)
 par(mfrow=c(2,4),mar=c(0,3,0,0), oma=c(4,2,2.5,1), mgp=c(3,1,0), cex=.9)
 labline = -.9
 labadj = 0.04
@@ -3470,8 +3475,8 @@ plot(variance*100~CMD.50, tmp, pch=16
 abline(lm(variance*100~CMD.50, varslong[which(varslong$trait=="hub" & varslong$level=="bSite" & varslong$Species!= "ACAC"),]), col=pal[1], lwd=2)
 
 mtext("h)",side=3, line=labline, adj=labadj)
-quartz.save(file=paste0("./",results_dirname,"/Fig5_VaraincebyClimate_MD50.pdf"),type = "pdf" )
-
+#quartz.save(file=paste0("./",results_dirname,"/Fig5_VaraincebyClimate_MD50.pdf"),type = "pdf" )
+dev.off()
 
 
 
@@ -3688,13 +3693,14 @@ colchoices <- c(1,2,4,3)
 # mtext(3,adj=0, text="a)    E. obliqua", line=.4)
 
 quartz(width=4, height=4)
+jpeg(file=paste0("./",results_dirname,"/Fig6_VarPatterns.jpg"), width=4, height=4, units="in", res=600)
 par(mar=c(4,4,1,1), oma=c(0,0,2,5), mgp=c(2,.7,0))
 b <- barplot(as.matrix(respats[c(4,3,2,1),c("WD","LMA","LDMC","log.hub")]), beside = F, bg=palvars[colchoices], ylab="# Species", names.arg=rep("", times=4), las=2,density = c(30,30,0,30),angle=c(45,90,0,135), col=palvarsdark[colchoices] )
 legend(x=4.8, y=4, legend=c("increase","no trend","non-aridity","decrease"), title ="w/in Spp\nvariance trend\nw/ aridity", fill = palvarsdark[rev(colchoices)], xpd=NA, bty="n", angle=c(135,0,90,45), density=c(30,0,30,30))
 axis(1,at = b,labels = c("WD","LMA","LDMC","log(HV)"), las=2, tick = F, mgp=c(2,.2,0))
+dev.off()
 
-
-quartz.save(file=paste0("./",results_dirname,"/Fig6_VarPatterns.pdf"),type = "pdf" )
+#quartz.save(file=paste0("./",results_dirname,"/Fig6_VarPatterns.pdf"),type = "pdf" )
 
 
 
