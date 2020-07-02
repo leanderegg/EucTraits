@@ -1,11 +1,12 @@
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ## Reproducible Results for:
-##  Anderegg et al. 
+##  Anderegg et al. 2020 
 ## "Aridity drives coordinated trait shifts but not decreased trait variance across the geographic range of eight Australian trees"
-## In review: New Phytologist
+## New Phytologist
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-# This document reproduces the analyses and figures presented in Anderegg et al. using the data currently available in the 'trait_data' directory in this github repository
+# This document reproduces the analyses and figures presented in Anderegg et al. 2020 New Phytolotist
+# using the data currently available in the 'trait_data' directory in this github repository
 # For questions or to report bugs, please contact Leander Anderegg: leanderegg@gmail.com
 # last updated: 03 June 2020
 
@@ -13,7 +14,7 @@
 # set working directory if needed:
 #setwd("")
 # create a directory for generated results
-results_dirname <- "Results_20200603" # "EucTraits_Github_Repo/Results_20200603
+results_dirname <- "Results_YYYYMMDD" # "EucTraits_Github_Repo/Results_20200603
 dir.create(results_dirname)
 
 
@@ -123,18 +124,16 @@ panel.cor <- function(x, y, digits=1, prefix="", cex.cor = .5)
 
 
 # import soil data from the Soil and Landscape Grid of Australia (Grundy et al. 2015)
-soilsums <- read.csv("data/Soils_summaries0-60cm_clim_20200106.csv") [,-1]
+soilsums <- read.csv("data/Soils_summaries0-60cm_20200701.csv") [,-1]
 # this was created with the 'Cd-SoilsExtraction.R' code, also in this repo
 
 # import raw branch-level traits
-traits.b0 <- read.csv("data/TraitsAll_branch_20200512.csv", header=T, row.names = 1 )
+traits.b0 <- read.csv("data/TraitsAll_branch_20200701.csv", header=T, row.names = 1 )
 # NOTE: these are raw data with problematic points identified by the 'Flag_XXX' columns (outliers, young leaves, lost or damaged samples, etc identified with flag >0)
 # kill bad trait values so I don't always have to filter them.
 traits.b0$LDMC[which(traits.b0$Flag_LDMC>0)] <- NA
-traits.b0$SLA[which(traits.b0$Flag_LDMC>0)] <- NA
 traits.b0$LMA[which(traits.b0$Flag_LDMC>0)] <- NA
 traits.b0$Al_As[which(traits.b0$Flag_Area>0)] <- NA
-traits.b0$SLA[which(traits.b0$Flag_Area>0)] <- NA
 traits.b0$LMA[which(traits.b0$Flag_Area>0)] <- NA
 
 # remove three additional outliers identified during analysis. Results are qualitatively robust to removal of these outliers.
@@ -163,8 +162,6 @@ traits.b$TreeDBH[which(traits.b$Species=="ACAC")] <- 0 # fill with dummy variabl
 # aggregate traits to tree average 
 # (need this for most plotting, which has too much overplotting at branch level)
 traits.t0 <- data.frame(traits.b  %>% group_by (Species,Site,Plot,Tree,Plottag,Sitetag,Treetag,TreeDBH) %>% summarise(
-  AI=mean(AI), pAI = mean(pAI),  MD = mean(MD), pMD = mean(pMD),
-  PET=mean(PET),pPET=mean(pPET), PPT=mean(PPT), pPPT=mean(pPPT),
   MDc = mean(MDc), MATc = mean(MATc),
   PETc=mean(PETc), PPTc=mean(PPTc), Tminc = mean(Tminc), Tmaxc = mean(Tmaxc),
   Pminqc = mean(Pminqc), rhc = mean(rhc),
@@ -173,7 +170,7 @@ traits.t0 <- data.frame(traits.b  %>% group_by (Species,Site,Plot,Tree,Plottag,S
   sdLDMC = sd(LDMC, na.rm=T), LDMC = mean(LDMC, na.rm=T),
   sdLMA = sd(LMA, na.rm=T), LMA=mean(LMA, na.rm=T),
   avg_nleaves = mean(nleaves, na.rm=T), avg_tot_area = mean(tot_area, na.rm=T),
-  avg_area = mean(avg_area, na.rm=T), median_area = mean(median_area, na.rm=T),
+  median_area = mean(median_area, na.rm=T),
   max_area = max(max_area, na.rm=T), min_area = min(min_area, na.rm=T),
   sdAl_As = sd(Al_As, na.rm=T), Al_As = mean(Al_As, na.rm=T),
   sdhub = sd(hub, na.rm=T), hub = mean(hub, na.mr=T)
@@ -189,12 +186,11 @@ traits.t <- data.frame(traits.t0, soils.t)
 
 # aggregate to plot level
 traits.p0 <- data.frame(traits.t %>% group_by (Species,Site,Plot,Plottag,Sitetag) %>% summarise(
-  AI=mean(AI,na.rm=T), pAI = mean(pAI,na.rm=T),  MD = mean(MD,na.rm=T), pMD = mean(pMD,na.rm=T), PET=mean(PET,na.rm=T),pPET=mean(pPET), PPT=mean(PPT), pPPT=mean(pPPT),
   MDc = mean(MDc), MATc = mean(MATc),
   PETc=mean(PETc), PPTc=mean(PPTc), Tminc = mean(Tminc), Tmaxc = mean(Tmaxc),
   Pminqc = mean(Pminqc), rhc = mean(rhc),
   Lat = mean(Lat), Lon= mean(Lon), StandBA = mean(StandBA, na.rm=T), meanDBH = mean(TreeDBH, na.rm=T),
-  avg_nleaves = mean(avg_nleaves, na.rm=T), avg_area = mean(avg_area, na.rm=T), max_area = max(max_area, na.rm=T), min_area=min(min_area, na.rm=T),
+  avg_nleaves = mean(avg_nleaves, na.rm=T),  max_area = max(max_area, na.rm=T), min_area=min(min_area, na.rm=T),
   sdWD = sd(WD, na.rm=T), medWD = median(WD, na.rm=T), WD = mean(WD, na.rm=T),
   sdLMA = sd(LMA, na.rm=T), medLMA = median(LMA, na.rm=T), LMA = mean(LMA, na.rm=T),
   sdLDMC = sd(LDMC, na.rm=T), medLDMC = median(LDMC, na.rm=T), LDMC = mean(LDMC, na.rm=T),
@@ -209,8 +205,6 @@ traits.p <- data.frame(traits.p0, soils.p)
 
 # aggregate to site level
 traits.s <- data.frame(traits.p %>% group_by (Species,Site,Sitetag) %>% summarise(
-  AI=mean(AI, na.rm=T),  MD = mean(MD, na.rm=T), 
-  PET=mean(PET, na.rm=T), PPT=mean(PPT, na.rm=T),
   MDc = mean(MDc), MATc = mean(MATc),
   PETc=mean(PETc), PPTc=mean(PPTc), Tminc = mean(Tminc), Tmaxc = mean(Tmaxc),
   Pminqc = mean(Pminqc), rhc = mean(rhc),
@@ -218,8 +212,8 @@ traits.s <- data.frame(traits.p %>% group_by (Species,Site,Sitetag) %>% summaris
   CLY=mean(CLY),SND=mean(SND), SLT = mean(SLT),
   PTO=mean(PTO), NTO=mean(NTO), AWC=mean(AWC), BDW=mean(BDW),
   ECE=mean(ECE), DES=mean(DES), DER=mean(DER), PC1fert = mean(PC1fert),
-  PC2depth=mean(PC2depth), Tmin=mean(Tmin), Elev=mean(Elev), MAT=mean(MAT),
-  avg_nleaves = mean(avg_nleaves, na.rm=T), avg_area = mean(avg_area, na.rm=T), max_area = max(max_area, na.rm=T),
+  PC2depth=mean(PC2depth), Elev=mean(Elev),
+  avg_nleaves = mean(avg_nleaves, na.rm=T), max_area = max(max_area, na.rm=T),
   min_area=min(min_area, na.rm=T),
   sdWD = sd(WD, na.rm=T), medWD = median(WD, na.rm=T), WD = mean(WD, na.rm=T),
   sdLMA = sd(LMA, na.rm=T), medLMA = median(LMA, na.rm=T), LMA = mean(LMA, na.rm=T),
@@ -246,9 +240,10 @@ traits.s$log.hub <- log(traits.s$hub, base=10)
 
 
 # climate quantiles for the whole species distributions (for code used to create this, email LDL Anderegg)
-quants <- read.csv("data/Climate_Quantiles_allspp_20200516.csv")[,-1]
+quants <- read.csv("data/Climate_Quantiles_allspp_20200701.csv")
 quants$Species <- quants$spp
 levels(quants$Species) <- list(ACAC="acac",ESAL="esal",EMARG="emarg",COCA="coca",OVAT="ovat",VIMI="vimi",AMYG="amyg",OBLI="obli")
+
 
 ########### Species Means ################################
 traits.sp <- traits.b %>% group_by(Species) %>% summarise(WD = mean(WD, na.rm=T), LMA=mean(LMA, na.rm=T), LDMC=mean(LDMC, na.rm=T), hub = mean(hub, na.rm=T))
@@ -480,16 +475,16 @@ residplots <- function(model, dataz, climvar, res.type="normalized", Species = "
   }
   else{ quartz(width=9, height=4)}
   par(mfrow=c(1,4), mar=c(4,4,1,1), oma=c(0,0,2,0))
-  ref.group[[2]]$MDc <- traits.p$pMD[match(rownames(ref.group[[2]]),traits.p$Plottag)]
-  ref.group[[2]]$PPTc <- traits.p$pPPT[match(rownames(ref.group[[2]]),traits.p$Plottag)]
-  ref.group[[2]]$PETc <- traits.p$pPET[match(rownames(ref.group[[2]]),traits.p$Plottag)]
+  ref.group[[2]]$MDc <- traits.p$MDc[match(rownames(ref.group[[2]]),traits.p$Plottag)]
+  ref.group[[2]]$PPTc <- traits.p$PPTc[match(rownames(ref.group[[2]]),traits.p$Plottag)]
+  ref.group[[2]]$PETc <- traits.p$PETc[match(rownames(ref.group[[2]]),traits.p$Plottag)]
   ref.group[[2]]$PC1fert <- traits.p$PC1fert[match(rownames(ref.group[[2]]),traits.p$Plottag)]
   ref.group[[2]]$PC2depth <- traits.p$PC2depth[match(rownames(ref.group[[2]]),traits.p$Plottag)]
   ref.group[[2]]$var <- ref.var.group2[match(rownames(ref.group[[2]]), names(ref.var.group2))]
   
-  ref.group[[1]]$MDc <- traits.t$pMD[match(rownames(ref.group[[1]]),traits.t$Treetag)]
-  ref.group[[1]]$PETc <- traits.t$pPET[match(rownames(ref.group[[1]]),traits.t$Treetag)]
-  ref.group[[1]]$PPTc <- traits.t$pPPT[match(rownames(ref.group[[1]]),traits.t$Treetag)]
+  ref.group[[1]]$MDc <- traits.t$MDc[match(rownames(ref.group[[1]]),traits.t$Treetag)]
+  ref.group[[1]]$PETc <- traits.t$PETc[match(rownames(ref.group[[1]]),traits.t$Treetag)]
+  ref.group[[1]]$PPTc <- traits.t$PPTc[match(rownames(ref.group[[1]]),traits.t$Treetag)]
   ref.group[[1]]$PC1fert <- traits.t$PC1fert[match(rownames(ref.group[[1]]),traits.t$Treetag)]
   ref.group[[1]]$PC2depth <- traits.t$PC2depth[match(rownames(ref.group[[1]]),traits.t$Treetag)]
   ref.group[[1]]$var <- ref.var.group1[match(rownames(ref.group[[1]]), names(ref.var.group1))]
@@ -602,12 +597,8 @@ fit.traits <- function(dataz, trait, species, diam = F, standBA = F){
 
 ### ** WD modeling ##########
 ## first make a directory to store things in:
-#dir.create("/Users/leeanderegg/Dropbox/Trade-offs project/Intraspecific_Results/Trait-Clim_ModCrit/")
-# dir.create("/Users/leeanderegg/Dropbox/Trade-offs project/Intraspecific_Results/Trait-Clim_ModCrit/WoodDensity")
 dir.create(paste0("./",results_dirname,"/Trait-Clim_ModCrit"))
 
-#current_version <- "20180812"
-# current_version <- "20200110"
 current_version <- "20200521"
 current_path <- paste0(results_dirname,"/Trait-Clim_ModCrit")
 
@@ -3014,9 +3005,6 @@ quartz.save(file=paste0("./",results_dirname,"/FigS6_PC2Climate_MDchelsa.pdf"),t
 
 
 ##### Test significance to relationship with PCs at site level
-testPPT <- lmer(PC1~scale(PPT) + (0 + scale(PPT)|Species), traits.s)
-testMD <- lmer(PC1~scale(MD) + (0 + scale(MD)|Species), traits.s)
-testPET <- lmer(PC1~scale(PET) + (0 + scale(PET)|Species), traits.s)
 
 testPPTc <- lmer(PC1~scale(PPTc) + (0 + scale(PPTc)|Species), traits.s)
 testMDc <- lmer(PC1~scale(MDc) + (0 + scale(MDc)|Species), traits.s)
@@ -3692,7 +3680,7 @@ colchoices <- c(1,2,4,3)
 # legend("topright",legend=c("w/in Tree", "w/in Plot"), pch=c(1,16), col=c("grey","black"), lty=1, bty="n")
 # mtext(3,adj=0, text="a)    E. obliqua", line=.4)
 
-quartz(width=4, height=4)
+#quartz(width=4, height=4)
 jpeg(file=paste0("./",results_dirname,"/Fig6_VarPatterns.jpg"), width=4, height=4, units="in", res=600)
 par(mar=c(4,4,1,1), oma=c(0,0,2,5), mgp=c(2,.7,0))
 b <- barplot(as.matrix(respats[c(4,3,2,1),c("WD","LMA","LDMC","log.hub")]), beside = F, bg=palvars[colchoices], ylab="# Species", names.arg=rep("", times=4), las=2,density = c(30,30,0,30),angle=c(45,90,0,135), col=palvarsdark[colchoices] )
@@ -3710,16 +3698,17 @@ dev.off()
 
 
 
-######### .. Table S2: Twig characteristics ###############################
-ts2 <- traits.b %>% group_by(Species) %>% summarise(Diameter = mean(Stem_Di_corrected, na.rm=T), Diameter_sd = sd(Stem_Di_corrected, na.rm=T),
-                                                    Length = mean(Stem_Length, na.rm=T), Length_sd = sd(Stem_Length, na.rm=T),       
-                                                    N_Leaves = mean(nleaves, na.rm=T), N_Leaves_sd = sd(nleaves, na.rm=T))
-
-ts2.clean <- data.frame(Species = c("Acacia acuminata","E. amygdalina","Corymbia calophylla","E. marginata","E. salmonophloia","E. obliqua","E. ovata","E. viminalis")
-                        , Diameter = paste0(round(ts2$Diameter,2)," (",round(ts2$Diameter_sd,2),")")
-                        , Length = paste0(round(ts2$Length,2)," (",round(ts2$Length_sd,2),")")
-                        , N_Leaves = paste0(round(ts2$N_Leaves,2)," (",round(ts2$N_Leaves_sd,2),")"))
-
-write.csv(ts2.clean, paste0(results_dirname,"/Table_S2_twig_characteristics.csv"))
-          
-          
+# ######### .. Table S2: Twig characteristics ###############################
+  # for Stem_Length data, email leanderegg@gmail.com
+# ts2 <- traits.b %>% group_by(Species) %>% summarise(Diameter = mean(Stem_Di_corrected, na.rm=T), Diameter_sd = sd(Stem_Di_corrected, na.rm=T),
+#                                                     Length = mean(Stem_Length, na.rm=T), Length_sd = sd(Stem_Length, na.rm=T),       
+#                                                     N_Leaves = mean(nleaves, na.rm=T), N_Leaves_sd = sd(nleaves, na.rm=T))
+# 
+# ts2.clean <- data.frame(Species = c("Acacia acuminata","E. amygdalina","Corymbia calophylla","E. marginata","E. salmonophloia","E. obliqua","E. ovata","E. viminalis")
+#                         , Diameter = paste0(round(ts2$Diameter,2)," (",round(ts2$Diameter_sd,2),")")
+#                         , Length = paste0(round(ts2$Length,2)," (",round(ts2$Length_sd,2),")")
+#                         , N_Leaves = paste0(round(ts2$N_Leaves,2)," (",round(ts2$N_Leaves_sd,2),")"))
+# 
+# write.csv(ts2.clean, paste0(results_dirname,"/Table_S2_twig_characteristics.csv"))
+#           
+#           
